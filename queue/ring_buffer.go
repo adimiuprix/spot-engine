@@ -4,58 +4,67 @@ const defaultRingBufferSize = 32768
 
 type RingBuffer[T any] struct {
 	buffer []T
-	head   uint64
-	tail   uint64
+	Head   uint64
+	Tail   uint64
 	size   uint64
 }
 
 func New[T any](size uint64) *RingBuffer[T] {
-
 	if size == 0 {
-
 		size = defaultRingBufferSize
-
 	}
 
 	return &RingBuffer[T]{
-
 		buffer: make([]T, size),
-
-		size: size,
+		size:   size,
 	}
-
 }
 
 func (r *RingBuffer[T]) Push(value T) bool {
-
-	next := (r.head + 1) % r.size
-
-	if next == r.tail {
-
+	next := (r.Head + 1) % r.size
+	if next == r.Tail {
 		return false
-
 	}
 
-	r.buffer[r.head] = value
-
-	r.head = next
-
+	r.buffer[r.Head] = value
+	r.Head = next
 	return true
 }
 
 func (r *RingBuffer[T]) Pop() (T, bool) {
-
 	var zero T
-
-	if r.head == r.tail {
-
+	if r.Head == r.Tail {
 		return zero, false
-
 	}
 
-	value := r.buffer[r.tail]
-
-	r.tail = (r.tail + 1) % r.size
-
+	value := r.buffer[r.Tail]
+	r.Tail = (r.Tail + 1) % r.size
 	return value, true
+}
+
+// Peek melihat elemen pertama tanpa menghapusnya
+func (r *RingBuffer[T]) Peek() (T, bool) {
+	var zero T
+	if r.Head == r.Tail {
+		return zero, false
+	}
+	return r.buffer[r.Tail], true
+}
+
+// Size mengembalikan jumlah elemen dalam buffer
+func (r *RingBuffer[T]) Size() uint64 {
+	if r.Head >= r.Tail {
+		return r.Head - r.Tail
+	}
+	return r.size - r.Tail + r.Head
+}
+
+// IsEmpty mengecek apakah buffer kosong
+func (r *RingBuffer[T]) IsEmpty() bool {
+	return r.Head == r.Tail
+}
+
+// IsFull mengecek apakah buffer penuh
+func (r *RingBuffer[T]) IsFull() bool {
+	return (r.Head+1)%r.size == r.Tail
 }

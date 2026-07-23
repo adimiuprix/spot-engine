@@ -44,3 +44,11 @@ func NewOrder(
 		Timestamp: time.Now().UnixNano(),
 	}
 }
+
+func (o *Order) Remaining() decimal.Decimal {
+	return o.Quantity.Sub(o.Filled)
+}
+
+func (o *Order) IsFilled() bool {
+	return o.Filled.Equal(o.Quantity)
+}
