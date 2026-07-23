@@ -34,54 +34,65 @@ func main() {
 	eng.Start()
 	defer eng.Stop()
 
-	// Submit buy orders
+	// Get current timestamp for deterministic behavior
+	now := time.Now().UnixNano()
+
+	// Submit buy orders with proper CommandID and Timestamp
 	buyOrder1 := &order.Order{
-		ID:       1,
-		UserID:   100,
-		Symbol:   "BTC/USDT",
-		Side:     order.Buy,
-		Type:     order.Limit,
-		TIF:      order.GTC,
-		Price:    decimal.NewFromInt(50000),
-		Quantity: decimal.NewFromFloat(0.5),
-		Filled:   decimal.Zero,
+		ID:        1,
+		CommandID: "cmd-buy-1",
+		UserID:    100,
+		Symbol:    "BTC/USDT",
+		Side:      order.Buy,
+		Type:      order.Limit,
+		TIF:       order.GTC,
+		Price:     decimal.NewFromInt(50000),
+		Quantity:  decimal.NewFromFloat(0.5),
+		Filled:    decimal.Zero,
+		Timestamp: now,
 	}
 
 	buyOrder2 := &order.Order{
-		ID:       2,
-		UserID:   101,
-		Symbol:   "BTC/USDT",
-		Side:     order.Buy,
-		Type:     order.Limit,
-		TIF:      order.GTC,
-		Price:    decimal.NewFromInt(49900),
-		Quantity: decimal.NewFromFloat(1.0),
-		Filled:   decimal.Zero,
+		ID:        2,
+		CommandID: "cmd-buy-2",
+		UserID:    101,
+		Symbol:    "BTC/USDT",
+		Side:      order.Buy,
+		Type:      order.Limit,
+		TIF:       order.GTC,
+		Price:     decimal.NewFromInt(49900),
+		Quantity:  decimal.NewFromFloat(1.0),
+		Filled:    decimal.Zero,
+		Timestamp: now + 1,
 	}
 
-	// Submit sell orders
+	// Submit sell orders with proper CommandID and Timestamp
 	sellOrder1 := &order.Order{
-		ID:       3,
-		UserID:   102,
-		Symbol:   "BTC/USDT",
-		Side:     order.Sell,
-		Type:     order.Limit,
-		TIF:      order.GTC,
-		Price:    decimal.NewFromInt(50000),
-		Quantity: decimal.NewFromFloat(0.3),
-		Filled:   decimal.Zero,
+		ID:        3,
+		CommandID: "cmd-sell-1",
+		UserID:    102,
+		Symbol:    "BTC/USDT",
+		Side:      order.Sell,
+		Type:      order.Limit,
+		TIF:       order.GTC,
+		Price:     decimal.NewFromInt(50000),
+		Quantity:  decimal.NewFromFloat(0.3),
+		Filled:    decimal.Zero,
+		Timestamp: now + 2,
 	}
 
 	sellOrder2 := &order.Order{
-		ID:       4,
-		UserID:   103,
-		Symbol:   "BTC/USDT",
-		Side:     order.Sell,
-		Type:     order.Limit,
-		TIF:      order.GTC,
-		Price:    decimal.NewFromInt(49950),
-		Quantity: decimal.NewFromFloat(0.8),
-		Filled:   decimal.Zero,
+		ID:        4,
+		CommandID: "cmd-sell-2",
+		UserID:    103,
+		Symbol:    "BTC/USDT",
+		Side:      order.Sell,
+		Type:      order.Limit,
+		TIF:       order.GTC,
+		Price:     decimal.NewFromInt(49950),
+		Quantity:  decimal.NewFromFloat(0.8),
+		Filled:    decimal.Zero,
+		Timestamp: now + 3,
 	}
 
 	// Submit orders
@@ -98,21 +109,23 @@ func main() {
 	book := eng.GetOrderBook()
 	fmt.Println("\n=== Order Book ===")
 	fmt.Printf("Symbol: %s\n", book.Symbol)
-	
+
 	fmt.Println("\nBids:")
-	for price, level := range book.Bids {
-		fmt.Printf("  %s: %d orders, volume: %s\n", 
-			price, 
-			len(level.Orders), 
+	bids, _ := book.GetDepth(10)
+	for _, level := range bids {
+		fmt.Printf("  %s: %d orders, volume: %s\n",
+			level.Price.String(),
+			len(level.Orders),
 			level.Volume.String(),
 		)
 	}
 
 	fmt.Println("\nAsks:")
-	for price, level := range book.Asks {
-		fmt.Printf("  %s: %d orders, volume: %s\n", 
-			price, 
-			len(level.Orders), 
+	_, asks := book.GetDepth(10)
+	for _, level := range asks {
+		fmt.Printf("  %s: %d orders, volume: %s\n",
+			level.Price.String(),
+			len(level.Orders),
 			level.Volume.String(),
 		)
 	}

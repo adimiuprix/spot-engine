@@ -1,65 +1,130 @@
 package book
 
-import "github.com/adimiuprix/spot-engine/order"
+import (
+	"github.com/adimiuprix/spot-engine/order"
+	"github.com/shopspring/decimal"
+)
 
+// OrderBook maintains buy and sell orders using efficient B-Tree structure
 type OrderBook struct {
-	Symbol string
-	Bids   map[string]*PriceLevel
-	Asks   map[string]*PriceLevel
+	Symbol     string
+	BidTree    *PriceTree      // Descending order (highest price first)
+	AskTree    *PriceTree      // Ascending order (lowest price first)
+	MinLotSize decimal.Decimal // Minimum trade unit for this market
 }
 
-func NewOrderBook(
-	symbol string,
-) *OrderBook {
+// NewOrderBook creates a new order book for a symbol
+func NewOrderBook(symbol string) *OrderBook {
 	return &OrderBook{
-		Symbol: symbol,
-		Bids:   make(map[string]*PriceLevel),
-		Asks:   make(map[string]*PriceLevel),
+		Symbol:     symbol,
+		BidTree:    NewPriceTree(true),    // Descending for bids
+		AskTree:    NewPriceTree(false),   // Ascending for asks
+		MinLotSize: decimal.NewFromInt(1), // Default
 	}
 }
 
-func (b *OrderBook) Add(
-	o *order.Order,
-) {
-	key := o.Price.String()
+// Add adds an order to the appropriate side of the book
+func (b *OrderBook) Add(o *order.Order) {
+	tree := b.getTree(o.Side)
 
-	if o.Side == order.Buy {
-		level, exists := b.Bids[key]
-		if !exists {
-			level = &PriceLevel{
-				Price: o.Price,
-			}
-			b.Bids[key] = level
+	// Get or create price level
+	level := tree.Get(o.Price)
+	if level == nil {
+		level = NewPriceLevel(o.Price)
+		tree.Add(level)
+	}
+
+	level.Add(o)
+}
+
+// RemoveFilledOrders removes filled orders and empty price levels
+func (b *OrderBook) RemoveFilledOrders(side order.Side) {
+	tree := b.getTree(side)
+
+	// Collect empty price levels
+	var emptyPrices []decimal.Decimal
+
+	tree.Ascend(func(level *PriceLevel) bool {
+		level.RemoveFilledOrders()
+		if level.IsEmpty() {
+			emptyPrices = append(emptyPrices, level.Price)
 		}
-		level.Add(o)
-	} else if o.Side == order.Sell {
-		level, exists := b.Asks[key]
-		if !exists {
-			level = &PriceLevel{
-				Price: o.Price,
-			}
-			b.Asks[key] = level
-		}
-		level.Add(o)
+		return true // Continue iteration
+	})
+
+	// Remove empty levels
+	for _, price := range emptyPrices {
+		tree.Remove(price)
 	}
 }
 
+// BestAsk returns the lowest ask price level (O(1) with B-Tree)
 func (b *OrderBook) BestAsk() *PriceLevel {
-	var best *PriceLevel
-	for _, level := range b.Asks {
-		if best == nil || level.Price.LessThan(best.Price) {
-			best = level
-		}
-	}
-	return best
+	return b.AskTree.Best()
 }
 
+// BestBid returns the highest bid price level (O(1) with B-Tree)
 func (b *OrderBook) BestBid() *PriceLevel {
-	var best *PriceLevel
-	for _, level := range b.Bids {
-		if best == nil || level.Price.GreaterThan(best.Price) {
-			best = level
+	return b.BidTree.Best()
+}
+
+// GetDepth returns market depth up to specified levels
+func (b *OrderBook) GetDepth(levels int) (bids, asks []*PriceLevel) {
+	count := 0
+	b.BidTree.Ascend(func(level *PriceLevel) bool {
+		if count >= levels {
+			return false
 		}
+		bids = append(bids, level)
+		count++
+		return true
+	})
+
+	count = 0
+	b.AskTree.Ascend(func(level *PriceLevel) bool {
+		if count >= levels {
+			return false
+		}
+		asks = append(asks, level)
+		count++
+		return true
+	})
+
+	return bids, asks
+}
+
+// GetLevel retrieves a specific price level
+func (b *OrderBook) GetLevel(side order.Side, price decimal.Decimal) *PriceLevel {
+	tree := b.getTree(side)
+	return tree.Get(price)
+}
+
+// RemoveLevel removes a price level completely
+func (b *OrderBook) RemoveLevel(side order.Side, price decimal.Decimal) {
+	tree := b.getTree(side)
+	tree.Remove(price)
+}
+
+// Clear removes all orders from the book
+func (b *OrderBook) Clear() {
+	b.BidTree.Clear()
+	b.AskTree.Clear()
+}
+
+// BidCount returns the number of bid price levels
+func (b *OrderBook) BidCount() int {
+	return b.BidTree.Len()
+}
+
+// AskCount returns the number of ask price levels
+func (b *OrderBook) AskCount() int {
+	return b.AskTree.Len()
+}
+
+// getTree returns the appropriate tree for the given side
+func (b *OrderBook) getTree(side order.Side) *PriceTree {
+	if side == order.Buy {
+		return b.BidTree
 	}
-	return best
+	return b.AskTree
 }

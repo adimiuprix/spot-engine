@@ -42,7 +42,6 @@ func (r *RingBuffer[T]) Pop() (T, bool) {
 	return value, true
 }
 
-// Peek melihat elemen pertama tanpa menghapusnya
 func (r *RingBuffer[T]) Peek() (T, bool) {
 	var zero T
 	if r.Head == r.Tail {
@@ -51,7 +50,6 @@ func (r *RingBuffer[T]) Peek() (T, bool) {
 	return r.buffer[r.Tail], true
 }
 
-// Size mengembalikan jumlah elemen dalam buffer
 func (r *RingBuffer[T]) Size() uint64 {
 	if r.Head >= r.Tail {
 		return r.Head - r.Tail
@@ -59,12 +57,10 @@ func (r *RingBuffer[T]) Size() uint64 {
 	return r.size - r.Tail + r.Head
 }
 
-// IsEmpty mengecek apakah buffer kosong
 func (r *RingBuffer[T]) IsEmpty() bool {
 	return r.Head == r.Tail
 }
 
-// IsFull mengecek apakah buffer penuh
 func (r *RingBuffer[T]) IsFull() bool {
 	return (r.Head+1)%r.size == r.Tail
 }
