@@ -17,6 +17,9 @@ var (
 	ErrQueueFull        = errors.New("queue_full: Ring buffer is full")
 	ErrEngineShutdown   = errors.New("engine_shutdown: Engine is shutting down")
 	ErrNotFound         = errors.New("not_found: Resource not found")
+	ErrMarketSuspended  = errors.New("market_suspended: Market is suspended")
+	ErrUnauthorized     = errors.New("unauthorized: Unauthorized operation")
+	ErrInvalidRequest   = errors.New("invalid_request: Invalid request")
 )
 
 // RejectReason represents business-level rejection reasons (emitted as logs)

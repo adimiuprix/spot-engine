@@ -7,8 +7,10 @@ import (
 
 	"github.com/adimiuprix/spot-engine/book"
 	"github.com/adimiuprix/spot-engine/event"
+	"github.com/adimiuprix/spot-engine/order"
 	"github.com/adimiuprix/spot-engine/protocol"
 	"github.com/adimiuprix/spot-engine/snapshot"
+	"github.com/shopspring/decimal"
 )
 
 // Alias for cleaner code
@@ -399,4 +401,330 @@ func (e *MatchingEngine) RestoreFromSnapshot(snapshots []*OrderBookSnapshot) err
 	e.seqGen.Set(maxSeq)
 
 	return nil
+}
+
+// PlaceOrderAsync places a new order asynchronously
+func (e *MatchingEngine) PlaceOrderAsync(ctx context.Context, req *protocol.PlaceOrderRequest) (*Future[*protocol.PlaceOrderResult], error) {
+	// Validate request
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+
+	future := NewFuture[*protocol.PlaceOrderResult]()
+
+	// Execute asynchronously
+	go func() {
+		e.mu.RLock()
+		market, exists := e.markets[req.MarketID]
+		e.mu.RUnlock()
+
+		if !exists {
+			rejectLog := event.NewRejectLog(
+				e.seqGen.Next(),
+				req.CommandID,
+				req.UserID,
+				req.MarketID,
+				req.Timestamp,
+				protocol.RejectReasonMarketNotFound,
+				"market not found",
+				req.OrderID,
+			)
+			e.publisher.Publish(rejectLog)
+			future.Fail(protocol.ErrNotFound)
+			return
+		}
+
+		if !market.CanPlaceOrder() {
+			rejectLog := event.NewRejectLog(
+				e.seqGen.Next(),
+				req.CommandID,
+				req.UserID,
+				req.MarketID,
+				req.Timestamp,
+				protocol.RejectReasonMarketSuspended,
+				"market does not accept new orders",
+				req.OrderID,
+			)
+			e.publisher.Publish(rejectLog)
+			future.Fail(protocol.ErrMarketSuspended)
+			return
+		}
+
+		o := requestToOrder(req, e.seqGen)
+		result := market.Matcher.ProcessWithTIF(o)
+
+		if !o.IsFilled() && o.Type != order.Market {
+			switch o.TIF {
+			case order.GTC, order.PostOnly:
+				market.OrderBook.Add(o)
+			}
+		}
+
+		placeResult := &protocol.PlaceOrderResult{
+			OrderID:     o.OrderID,
+			Accepted:    true,
+			Filled:      o.Filled,
+			Remaining:   o.Remaining(),
+			Trades:      convertLogsToInterface(result.Trades),
+			InBook:      !o.IsFilled() && o.Type == order.Limit && (o.TIF == order.GTC || o.TIF == order.PostOnly),
+			PartialFill: o.Filled.GreaterThan(decimal.Zero) && !o.IsFilled(),
+		}
+
+		future.Complete(placeResult)
+	}()
+
+	return future, nil
+}
+
+// CancelOrderAsync cancels an existing order asynchronously
+func (e *MatchingEngine) CancelOrderAsync(ctx context.Context, req *protocol.CancelOrderRequest) (*Future[*protocol.CancelOrderResult], error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+
+	future := NewFuture[*protocol.CancelOrderResult]()
+
+	go func() {
+		e.mu.RLock()
+		market, exists := e.markets[req.Symbol]
+		e.mu.RUnlock()
+
+		if !exists {
+			rejectLog := event.NewRejectLog(
+				e.seqGen.Next(),
+				req.CommandID,
+				req.UserID,
+				req.Symbol,
+				req.Timestamp,
+				protocol.RejectReasonMarketNotFound,
+				"market not found",
+				req.OrderID,
+			)
+			e.publisher.Publish(rejectLog)
+			future.Fail(protocol.ErrNotFound)
+			return
+		}
+
+		if !market.CanCancelOrder() {
+			rejectLog := event.NewRejectLog(
+				e.seqGen.Next(),
+				req.CommandID,
+				req.UserID,
+				req.Symbol,
+				req.Timestamp,
+				protocol.RejectReasonMarketSuspended,
+				"market does not accept cancellations",
+				req.OrderID,
+			)
+			e.publisher.Publish(rejectLog)
+			future.Fail(protocol.ErrMarketSuspended)
+			return
+		}
+
+		o := market.OrderBook.FindOrder(req.OrderID)
+		if o == nil {
+			rejectLog := event.NewRejectLog(
+				e.seqGen.Next(),
+				req.CommandID,
+				req.UserID,
+				req.Symbol,
+				req.Timestamp,
+				protocol.RejectReasonOrderNotFound,
+				"order not found in book",
+				req.OrderID,
+			)
+			e.publisher.Publish(rejectLog)
+			future.Fail(protocol.ErrNotFound)
+			return
+		}
+
+		if o.UserID != req.UserID {
+			rejectLog := event.NewRejectLog(
+				e.seqGen.Next(),
+				req.CommandID,
+				req.UserID,
+				req.Symbol,
+				req.Timestamp,
+				protocol.RejectReasonInvalidOrderOwner,
+				"user does not own this order",
+				req.OrderID,
+			)
+			e.publisher.Publish(rejectLog)
+			future.Fail(protocol.ErrUnauthorized)
+			return
+		}
+
+		removed := market.OrderBook.RemoveOrder(o)
+		if !removed {
+			future.Fail(protocol.ErrNotFound)
+			return
+		}
+
+		cancelLog := event.NewCancelLog(
+			e.seqGen.Next(),
+			req.CommandID,
+			req.UserID,
+			req.Symbol,
+			req.Timestamp,
+			req.OrderID,
+			sideToString(o.Side),
+			o.Price,
+			o.Remaining(),
+		)
+		e.publisher.Publish(cancelLog)
+
+		cancelResult := &protocol.CancelOrderResult{
+			OrderID:       o.OrderID,
+			Cancelled:     true,
+			FilledBefore:  o.Filled,
+			CancelledSize: o.Remaining(),
+		}
+
+		future.Complete(cancelResult)
+	}()
+
+	return future, nil
+}
+
+// AmendOrderAsync amends an existing order asynchronously
+func (e *MatchingEngine) AmendOrderAsync(ctx context.Context, req *protocol.AmendOrderRequest) (*Future[*protocol.AmendOrderResult], error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+
+	future := NewFuture[*protocol.AmendOrderResult]()
+
+	go func() {
+		e.mu.RLock()
+		market, exists := e.markets[req.MarketID]
+		e.mu.RUnlock()
+
+		if !exists {
+			rejectLog := event.NewRejectLog(
+				e.seqGen.Next(),
+				req.CommandID,
+				req.UserID,
+				req.MarketID,
+				req.Timestamp,
+				protocol.RejectReasonMarketNotFound,
+				"market not found",
+				req.OrderID,
+			)
+			e.publisher.Publish(rejectLog)
+			future.Fail(protocol.ErrNotFound)
+			return
+		}
+
+		if !market.CanAmendOrder() {
+			rejectLog := event.NewRejectLog(
+				e.seqGen.Next(),
+				req.CommandID,
+				req.UserID,
+				req.MarketID,
+				req.Timestamp,
+				protocol.RejectReasonMarketSuspended,
+				"market does not accept amendments",
+				req.OrderID,
+			)
+			e.publisher.Publish(rejectLog)
+			future.Fail(protocol.ErrMarketSuspended)
+			return
+		}
+
+		amendResult := market.Matcher.ProcessAmend(req)
+
+		if !amendResult.Success {
+			rejectLog := event.NewRejectLog(
+				e.seqGen.Next(),
+				req.CommandID,
+				req.UserID,
+				req.MarketID,
+				req.Timestamp,
+				amendResult.Reason,
+				amendResult.Detail,
+				req.OrderID,
+			)
+			e.publisher.Publish(rejectLog)
+
+			var err error
+			switch amendResult.Reason {
+			case protocol.RejectReasonOrderNotFound:
+				err = protocol.ErrNotFound
+			case protocol.RejectReasonInvalidOrderOwner:
+				err = protocol.ErrUnauthorized
+			default:
+				err = protocol.ErrInvalidRequest
+			}
+
+			future.Fail(err)
+			return
+		}
+
+		result := &protocol.AmendOrderResult{
+			OrderID:        req.OrderID,
+			Amended:        true,
+			NewPrice:       req.NewPrice,
+			NewSize:        req.NewSize,
+			Trades:         convertLogsToInterface(amendResult.Trades),
+			MatchedOnAmend: len(amendResult.Trades) > 0,
+		}
+
+		future.Complete(result)
+	}()
+
+	return future, nil
+}
+
+// Helper functions
+func requestToOrder(req *protocol.PlaceOrderRequest, seqGen *event.SequenceGenerator) *order.Order {
+	var side order.Side
+	if req.Side == "buy" {
+		side = order.Buy
+	} else {
+		side = order.Sell
+	}
+
+	var orderType order.Type
+	if req.OrderType == "market" {
+		orderType = order.Market
+	} else {
+		orderType = order.Limit
+	}
+
+	o := &order.Order{
+		ID:        seqGen.Next(),
+		OrderID:   req.OrderID,
+		CommandID: req.CommandID,
+		UserID:    req.UserID,
+		Symbol:    req.MarketID,
+		Side:      side,
+		Type:      orderType,
+		TIF:       order.GTC,
+		Price:     req.Price,
+		Quantity:  req.Size,
+		QuoteSize: req.QuoteSize,
+		Filled:    decimal.Zero,
+		Timestamp: req.Timestamp,
+	}
+
+	if req.VisibleSize.GreaterThan(decimal.Zero) {
+		o.SetupIceberg(req.VisibleSize)
+	}
+
+	return o
+}
+
+func sideToString(side order.Side) string {
+	if side == order.Buy {
+		return "buy"
+	}
+	return "sell"
+}
+
+func convertLogsToInterface(logs []*event.OrderBookLog) []interface{} {
+	result := make([]interface{}, len(logs))
+	for i, log := range logs {
+		result[i] = log
+	}
+	return result
 }

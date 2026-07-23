@@ -27,7 +27,34 @@ cd example/trading
 go run main.go
 ```
 
-### 3. **Market Order** (`market_order/`)
+### 3. **Async Place Order** (`async_place_order/`) ⭐ RECOMMENDED
+Contoh lengkap place order dengan Async API:
+- PlaceOrderAsync untuk limit orders
+- PlaceOrderAsync untuk market orders  
+- Detailed results (filled, remaining, trades)
+- Error handling (validation vs execution)
+- Event monitoring real-time
+- Context support (timeout, cancellation)
+
+```bash
+cd example/async_place_order
+go run main.go
+```
+
+### 4. **Async Trading** (`async_trading/`) ⭐ FULL DEMO
+Contoh async trading API dengan Future pattern:
+- PlaceOrderAsync dengan detailed results
+- CancelOrderAsync dengan ownership check
+- AmendOrderAsync dengan priority rules
+- Context support (timeout, cancellation)
+- Full error handling
+
+```bash
+cd example/async_trading
+go run main.go
+```
+
+### 4. **Market Order** (`market_order/`)
 Contoh market order execution:
 - Market buy orders
 - Market sell orders
