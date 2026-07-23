@@ -403,6 +403,38 @@ func (e *MatchingEngine) RestoreFromSnapshot(snapshots []*OrderBookSnapshot) err
 	return nil
 }
 
+// TakeSnapshotToFile takes a snapshot and saves it to disk atomically
+func (e *MatchingEngine) TakeSnapshotToFile(targetDir string) (string, error) {
+	// Take in-memory snapshot
+	snapshots, globalSeqID := e.TakeSnapshot()
+
+	// Write to disk
+	writer := snapshot.NewWriter(targetDir)
+	if err := writer.WriteSnapshot(snapshots, globalSeqID); err != nil {
+		return "", fmt.Errorf("failed to write snapshot: %w", err)
+	}
+
+	snapshotName := fmt.Sprintf("snapshot-%d", globalSeqID)
+	return snapshotName, nil
+}
+
+// RestoreFromFile reads a snapshot from disk and restores engine state
+func (e *MatchingEngine) RestoreFromFile(snapshotDir string) (*snapshot.SnapshotMetadata, error) {
+	// Read from disk
+	reader := snapshot.NewReader(snapshotDir)
+	metadata, snapshots, err := reader.ReadSnapshot()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read snapshot: %w", err)
+	}
+
+	// Restore to engine
+	if err := e.RestoreFromSnapshot(snapshots); err != nil {
+		return nil, fmt.Errorf("failed to restore snapshot: %w", err)
+	}
+
+	return metadata, nil
+}
+
 // PlaceOrderAsync places a new order asynchronously
 func (e *MatchingEngine) PlaceOrderAsync(ctx context.Context, req *protocol.PlaceOrderRequest) (*Future[*protocol.PlaceOrderResult], error) {
 	// Validate request

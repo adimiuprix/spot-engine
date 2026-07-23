@@ -99,15 +99,31 @@ cd example/iceberg
 go run main.go
 ```
 
-### 7. **Snapshot** (`snapshot/`)
-Contoh snapshot dan restore order book:
-- Save order book state
-- Restore dari snapshot
-- Persistence
+### 7. **Snapshot** (`snapshot/`) ⭐ UPDATED
+Demonstrates snapshot and restore functionality with **persistent file I/O**:
+- TakeSnapshotToFile() - saves to disk atomically
+- RestoreFromFile() - recovers from disk
+- Simulates server crash and recovery
+- Shows data persistence with CRC32 verification
+- Creates snapshot.bin + metadata.json
 
 ```bash
 cd example/snapshot
 go run main.go
+# Check created files in ./snapshots/latest/
+```
+
+### 7b. **Auto Snapshot** (`auto_snapshot/`) ⭐ NEW
+Demonstrates automated periodic snapshots for production:
+- Periodic snapshots (every 5 seconds)
+- Automatic cleanup (keep last 5)
+- Concurrent trading simulation
+- Production-ready disaster recovery pattern
+
+```bash
+cd example/auto_snapshot
+go run main.go
+# Watch snapshots being created in ./snapshots/
 ```
 
 ### 8. **State Management** (`state_management/`)
