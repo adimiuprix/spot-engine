@@ -2,7 +2,6 @@ package matcher
 
 import (
 	"github.com/adimiuprix/spot-engine/event"
-	"github.com/adimiuprix/spot-engine/order"
 	"github.com/adimiuprix/spot-engine/protocol"
 )
 
