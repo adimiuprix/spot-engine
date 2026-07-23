@@ -1,0 +1,16 @@
+{
+  "go.useLanguageServer": true,
+  "go.buildOnSave": "workspace",
+  "go.lintOnSave": "workspace",
+  "go.vetOnSave": "workspace",
+  "go.buildTags": "",
+  "go.toolsManagement.autoUpdate": true,
+  "gopls": {
+    "build.directoryFilters": [
+      "-example"
+    ],
+    "build.buildFlags": [
+      "-tags="
+    ]
+  }
+}
