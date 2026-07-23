@@ -2,24 +2,29 @@ package matcher
 
 import (
 	"github.com/adimiuprix/spot-engine/book"
+	"github.com/adimiuprix/spot-engine/event"
 	"github.com/adimiuprix/spot-engine/order"
-	"github.com/adimiuprix/spot-engine/trade"
 	"github.com/shopspring/decimal"
 )
 
 type Matcher struct {
-	book    *book.OrderBook
-	tradeID uint64
+	book      *book.OrderBook
+	tradeID   uint64
+	seqGen    *event.SequenceGenerator
+	publisher event.PublishLog
 }
 
 type Result struct {
-	Trades []trade.Trade
+	Trades []*event.OrderBookLog
+	Fills  []*event.OrderBookLog
 }
 
-func New(book *book.OrderBook) *Matcher {
+func New(book *book.OrderBook, seqGen *event.SequenceGenerator, publisher event.PublishLog) *Matcher {
 	return &Matcher{
-		book:    book,
-		tradeID: 1,
+		book:      book,
+		tradeID:   1,
+		seqGen:    seqGen,
+		publisher: publisher,
 	}
 }
 
@@ -53,12 +58,15 @@ func (m *Matcher) matchBuy(buy *order.Order) Result {
 			break
 		}
 
-		// Execute trade
-		trade := m.execute(buy, sell)
-		result.Trades = append(result.Trades, trade)
+		// Execute trade and get logs
+		tradeLogs := m.execute(buy, sell)
+		result.Trades = append(result.Trades, tradeLogs...)
 
 		// Remove filled orders from the ask side
 		m.book.RemoveFilledOrders(order.Sell)
+
+		// Process iceberg replenishments on ask side
+		m.processReplenishments(order.Sell)
 	}
 
 	return result
@@ -84,18 +92,64 @@ func (m *Matcher) matchSell(sell *order.Order) Result {
 			break
 		}
 
-		// Execute trade
-		trade := m.execute(buy, sell)
-		result.Trades = append(result.Trades, trade)
+		// Execute trade and get logs
+		tradeLogs := m.execute(buy, sell)
+		result.Trades = append(result.Trades, tradeLogs...)
 
 		// Remove filled orders from the bid side
 		m.book.RemoveFilledOrders(order.Buy)
+
+		// Process iceberg replenishments on bid side
+		m.processReplenishments(order.Buy)
 	}
 
 	return result
 }
 
-func (m *Matcher) execute(buy *order.Order, sell *order.Order) trade.Trade {
+// processReplenishments processes iceberg order replenishments
+func (m *Matcher) processReplenishments(side order.Side) {
+	tree := m.book.BidTree
+	if side == order.Sell {
+		tree = m.book.AskTree
+	}
+
+	// Iterate through all price levels
+	tree.Ascend(func(level *book.PriceLevel) bool {
+		// Process replenishments (moves replenished orders to tail)
+		replenished := level.ProcessReplenishments()
+
+		// Emit replenishment logs
+		for _, o := range replenished {
+			replenishLog := event.NewFillLog(
+				m.seqGen.Next(),
+				o.CommandID,
+				o.UserID,
+				o.Symbol,
+				o.Timestamp,
+				o.OrderID,
+				sideToString(o.Side),
+				o.Price,
+				o.Filled,
+				o.Remaining(),
+				false, // Not fully filled since it replenished
+			)
+			m.publisher.Publish(replenishLog)
+		}
+
+		return true // Continue iteration
+	})
+}
+
+func sideToString(side order.Side) string {
+	if side == order.Buy {
+		return "buy"
+	}
+	return "sell"
+}
+
+func (m *Matcher) execute(buy *order.Order, sell *order.Order) []*event.OrderBookLog {
+	logs := make([]*event.OrderBookLog, 0, 3) // trade + 2 fills
+
 	buyRemaining := buy.Remaining()
 	sellRemaining := sell.Remaining()
 
@@ -108,25 +162,67 @@ func (m *Matcher) execute(buy *order.Order, sell *order.Order) trade.Trade {
 	}
 
 	// Price is always the resting order's price (maker price)
-	// In this case, we use the sell price as it was resting first
 	price := sell.Price
 
 	// Update filled quantities
 	buy.Filled = buy.Filled.Add(qty)
 	sell.Filled = sell.Filled.Add(qty)
 
-	// Create trade record
-	t := trade.Trade{
-		ID:          m.tradeID,
-		Symbol:      buy.Symbol,
-		BuyOrderID:  buy.ID,
-		SellOrderID: sell.ID,
-		Price:       price,
-		Quantity:    qty,
-		Timestamp:   buy.Timestamp, // Use incoming order timestamp
-	}
+	// Use taker's timestamp (the incoming order)
+	timestamp := buy.Timestamp
+
+	// Create trade log
+	tradeLog := event.NewTradeLog(
+		m.seqGen.Next(),
+		buy.CommandID,
+		buy.UserID,
+		buy.Symbol,
+		timestamp,
+		m.tradeID,
+		sell.OrderID, // Maker (resting order)
+		buy.OrderID,  // Taker (incoming order)
+		price,
+		qty,
+		"buy", // Taker side
+	)
+	logs = append(logs, tradeLog)
+	m.publisher.Publish(tradeLog)
+
+	// Create fill log for maker (sell side)
+	makerFillLog := event.NewFillLog(
+		m.seqGen.Next(),
+		sell.CommandID,
+		sell.UserID,
+		sell.Symbol,
+		timestamp,
+		sell.OrderID,
+		"sell",
+		price,
+		sell.Filled,
+		sell.Remaining(),
+		sell.IsFilled(),
+	)
+	logs = append(logs, makerFillLog)
+	m.publisher.Publish(makerFillLog)
+
+	// Create fill log for taker (buy side)
+	takerFillLog := event.NewFillLog(
+		m.seqGen.Next(),
+		buy.CommandID,
+		buy.UserID,
+		buy.Symbol,
+		timestamp,
+		buy.OrderID,
+		"buy",
+		price,
+		buy.Filled,
+		buy.Remaining(),
+		buy.IsFilled(),
+	)
+	logs = append(logs, takerFillLog)
+	m.publisher.Publish(takerFillLog)
 
 	m.tradeID++
 
-	return t
+	return logs
 }

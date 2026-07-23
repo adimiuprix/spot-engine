@@ -60,3 +60,54 @@ func (p *PriceLevel) Head() *order.Order {
 	}
 	return p.Orders[0]
 }
+
+// MoveToTail moves an order to the end of the queue (used for iceberg replenishment)
+func (p *PriceLevel) MoveToTail(o *order.Order) {
+	// Find and remove the order
+	for i, existing := range p.Orders {
+		if existing.ID == o.ID {
+			// Remove from current position
+			p.Orders = append(p.Orders[:i], p.Orders[i+1:]...)
+			// Add to tail
+			p.Orders = append(p.Orders, o)
+			return
+		}
+	}
+}
+
+// ProcessReplenishments checks all orders for replenishment and moves them to tail
+// Returns list of orders that were replenished
+func (p *PriceLevel) ProcessReplenishments() []*order.Order {
+	var replenished []*order.Order
+
+	for _, o := range p.Orders {
+		if o.NeedsReplenishment() {
+			o.Replenish()
+			replenished = append(replenished, o)
+		}
+	}
+
+	// Move all replenished orders to tail
+	for _, o := range replenished {
+		p.MoveToTail(o)
+	}
+
+	return replenished
+}
+
+// RemoveOrder removes a specific order from the level
+func (p *PriceLevel) RemoveOrder(target *order.Order) bool {
+	for i, o := range p.Orders {
+		if o.ID == target.ID {
+			// Remove from slice
+			p.Orders = append(p.Orders[:i], p.Orders[i+1:]...)
+			// Update volume
+			p.Volume = p.Volume.Sub(o.Remaining())
+			if p.Volume.IsNegative() {
+				p.Volume = decimal.Zero
+			}
+			return true
+		}
+	}
+	return false
+}

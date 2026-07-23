@@ -8,9 +8,10 @@ import (
 // OrderBook maintains buy and sell orders using efficient B-Tree structure
 type OrderBook struct {
 	Symbol     string
-	BidTree    *PriceTree      // Descending order (highest price first)
-	AskTree    *PriceTree      // Ascending order (lowest price first)
-	MinLotSize decimal.Decimal // Minimum trade unit for this market
+	BidTree    *PriceTree              // Descending order (highest price first)
+	AskTree    *PriceTree              // Ascending order (lowest price first)
+	MinLotSize decimal.Decimal         // Minimum trade unit for this market
+	OrderIndex map[string]*order.Order // Fast order lookup by OrderID
 }
 
 // NewOrderBook creates a new order book for a symbol
@@ -20,6 +21,7 @@ func NewOrderBook(symbol string) *OrderBook {
 		BidTree:    NewPriceTree(true),    // Descending for bids
 		AskTree:    NewPriceTree(false),   // Ascending for asks
 		MinLotSize: decimal.NewFromInt(1), // Default
+		OrderIndex: make(map[string]*order.Order),
 	}
 }
 
@@ -35,6 +37,9 @@ func (b *OrderBook) Add(o *order.Order) {
 	}
 
 	level.Add(o)
+
+	// Add to index
+	b.OrderIndex[o.OrderID] = o
 }
 
 // RemoveFilledOrders removes filled orders and empty price levels
@@ -127,4 +132,35 @@ func (b *OrderBook) getTree(side order.Side) *PriceTree {
 		return b.BidTree
 	}
 	return b.AskTree
+}
+
+// FindOrder finds an order by OrderID
+func (b *OrderBook) FindOrder(orderID string) *order.Order {
+	return b.OrderIndex[orderID]
+}
+
+// RemoveOrder removes a specific order from the book
+// Returns true if the order was found and removed
+func (b *OrderBook) RemoveOrder(o *order.Order) bool {
+	tree := b.getTree(o.Side)
+	level := tree.Get(o.Price)
+	if level == nil {
+		return false
+	}
+
+	// Remove from price level
+	removed := level.RemoveOrder(o)
+	if !removed {
+		return false
+	}
+
+	// Remove from index
+	delete(b.OrderIndex, o.OrderID)
+
+	// Remove empty price level
+	if level.IsEmpty() {
+		tree.Remove(o.Price)
+	}
+
+	return true
 }
