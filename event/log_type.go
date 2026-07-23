@@ -33,9 +33,9 @@ const (
 	EventTypeReject EventType = "reject"
 
 	// Admin events
-	EventTypeMarketCreated      EventType = "market_created"
-	EventTypeMarketSuspended    EventType = "market_suspended"
-	EventTypeMarketResumed      EventType = "market_resumed"
+	EventTypeMarketCreated       EventType = "market_created"
+	EventTypeMarketSuspended     EventType = "market_suspended"
+	EventTypeMarketResumed       EventType = "market_resumed"
 	EventTypeMarketConfigUpdated EventType = "market_config_updated"
 )
 

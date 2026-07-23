@@ -16,7 +16,7 @@ type Matcher struct {
 
 type Result struct {
 	Trades []*event.OrderBookLog
-	Fills  []*event.OrderBookLogk
+	Fills  []*event.OrderBookLog
 }
 
 func New(book *book.OrderBook, seqGen *event.SequenceGenerator, publisher event.PublishLog) *Matcher {

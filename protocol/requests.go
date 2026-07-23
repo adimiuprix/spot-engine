@@ -6,12 +6,12 @@ import "github.com/shopspring/decimal"
 type PlaceOrderRequest struct {
 	BaseCommand
 	OrderID     string          `json:"order_id"`
-	Side        string          `json:"side"`        // "buy" or "sell"
-	OrderType   string          `json:"order_type"`  // "limit" or "market"
-	Price       decimal.Decimal `json:"price"`       // Required for limit orders
-	Size        decimal.Decimal `json:"size"`        // Total order quantity
+	Side        string          `json:"side"`         // "buy" or "sell"
+	OrderType   string          `json:"order_type"`   // "limit" or "market"
+	Price       decimal.Decimal `json:"price"`        // Required for limit orders
+	Size        decimal.Decimal `json:"size"`         // Total order quantity
 	VisibleSize decimal.Decimal `json:"visible_size"` // For iceberg orders (0 = not iceberg)
-	QuoteSize   decimal.Decimal `json:"quote_size"`  // For market orders in quote currency
+	QuoteSize   decimal.Decimal `json:"quote_size"`   // For market orders in quote currency
 }
 
 // Validate checks if the place order request is valid

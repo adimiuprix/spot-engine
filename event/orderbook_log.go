@@ -9,21 +9,21 @@ import (
 // This structure participates in replay and must contain only replay-stable fields
 type OrderBookLog struct {
 	// Event identification
-	SeqID     uint64    `json:"seq_id"`      // Sequential log ID
-	LogType   LogType   `json:"log_type"`    // Category: trade, fill, cancel, reject, admin
-	EventType EventType `json:"event_type"`  // Specific event subtype
+	SeqID     uint64    `json:"seq_id"`     // Sequential log ID
+	LogType   LogType   `json:"log_type"`   // Category: trade, fill, cancel, reject, admin
+	EventType EventType `json:"event_type"` // Specific event subtype
 
 	// Command context (deterministic)
-	CommandID string `json:"command_id"`          // Original command ID
-	UserID    uint64 `json:"user_id"`             // Actor identity
-	MarketID  string `json:"market_id"`           // Target market
-	Timestamp int64  `json:"timestamp"`           // Logical event time (from command)
-	SeqNum    uint64 `json:"seq_num,omitempty"`   // Optional: upstream sequence number
+	CommandID string `json:"command_id"`        // Original command ID
+	UserID    uint64 `json:"user_id"`           // Actor identity
+	MarketID  string `json:"market_id"`         // Target market
+	Timestamp int64  `json:"timestamp"`         // Logical event time (from command)
+	SeqNum    uint64 `json:"seq_num,omitempty"` // Optional: upstream sequence number
 
 	// Order context
 	OrderID       string          `json:"order_id,omitempty"`
-	Side          string          `json:"side,omitempty"`           // "buy" or "sell"
-	OrderType     string          `json:"order_type,omitempty"`     // "limit" or "market"
+	Side          string          `json:"side,omitempty"`       // "buy" or "sell"
+	OrderType     string          `json:"order_type,omitempty"` // "limit" or "market"
 	Price         decimal.Decimal `json:"price,omitempty"`
 	Size          decimal.Decimal `json:"size,omitempty"`
 	FilledSize    decimal.Decimal `json:"filled_size,omitempty"`
@@ -38,13 +38,13 @@ type OrderBookLog struct {
 
 	// Rejection context (for LogTypeReject)
 	RejectReason protocol.RejectReason `json:"reject_reason,omitempty"`
-	RejectDetail string                 `json:"reject_detail,omitempty"`
+	RejectDetail string                `json:"reject_detail,omitempty"`
 
 	// Admin context (for LogTypeAdmin)
-	AdminReason string                 `json:"admin_reason,omitempty"`
-	OldState    protocol.OrderBookState `json:"old_state,omitempty"`
-	NewState    protocol.OrderBookState `json:"new_state,omitempty"`
-	ConfigChanges map[string]interface{} `json:"config_changes,omitempty"`
+	AdminReason   string                  `json:"admin_reason,omitempty"`
+	OldState      protocol.OrderBookState `json:"old_state,omitempty"`
+	NewState      protocol.OrderBookState `json:"new_state,omitempty"`
+	ConfigChanges map[string]interface{}  `json:"config_changes,omitempty"`
 }
 
 // NewTradeLog creates a trade execution log

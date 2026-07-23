@@ -1,0 +1,69 @@
+linters:
+  enable:
+    - gofmt          # Format code
+    - goimports      # Organize imports
+    - govet          # Suspicious constructs
+    - errcheck       # Unchecked errors
+    - staticcheck    # Static analysis
+    - unused         # Unused code
+    - gosimple       # Simplifications
+    - ineffassign    # Ineffectual assignments
+    - typecheck      # Type checking
+    - misspell       # Spelling mistakes
+    - unconvert      # Unnecessary conversions
+    - unparam        # Unused function parameters
+    - revive         # General linting rules
+    
+  disable:
+    - exhaustive     # Can be too strict
+    - exhaustruct    # Can be too strict
+    
+linters-settings:
+  gofmt:
+    simplify: true
+    
+  goimports:
+    local-prefixes: github.com/adimiuprix/spot-engine
+    
+  revive:
+    rules:
+      - name: exported
+        disabled: true  # Allow unexported returns
+      - name: package-comments
+        disabled: true  # Not require package doc
+        
+  errcheck:
+    check-type-assertions: true
+    check-blank: false
+    
+  staticcheck:
+    checks: ["all"]
+    
+  unused:
+    check-exported: false
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  
+  exclude-rules:
+    # Exclude test files from certain lints
+    - path: _test\.go
+      linters:
+        - errcheck
+        - unparam
+        
+    # Ignore line length in examples
+    - path: example/
+      linters:
+        - lll
+
+run:
+  timeout: 5m
+  tests: true
+  
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true

@@ -28,21 +28,21 @@ type DepthLevel struct {
 
 // Depth represents the order book depth snapshot
 type Depth struct {
-	MarketID  string        `json:"market_id"`
-	Bids      []DepthLevel  `json:"bids"`
-	Asks      []DepthLevel  `json:"asks"`
-	Timestamp int64         `json:"timestamp"`
+	MarketID  string       `json:"market_id"`
+	Bids      []DepthLevel `json:"bids"`
+	Asks      []DepthLevel `json:"asks"`
+	Timestamp int64        `json:"timestamp"`
 }
 
 // MarketStats represents market statistics
 type MarketStats struct {
-	MarketID       string             `json:"market_id"`
-	State          OrderBookState     `json:"state"`
-	BidCount       int                `json:"bid_count"`
-	AskCount       int                `json:"ask_count"`
-	BestBid        decimal.Decimal    `json:"best_bid"`
-	BestAsk        decimal.Decimal    `json:"best_ask"`
-	LastTradePrice decimal.Decimal    `json:"last_trade_price"`
-	MinLotSize     decimal.Decimal    `json:"min_lot_size"`
-	Timestamp      int64              `json:"timestamp"`
+	MarketID       string          `json:"market_id"`
+	State          OrderBookState  `json:"state"`
+	BidCount       int             `json:"bid_count"`
+	AskCount       int             `json:"ask_count"`
+	BestBid        decimal.Decimal `json:"best_bid"`
+	BestAsk        decimal.Decimal `json:"best_ask"`
+	LastTradePrice decimal.Decimal `json:"last_trade_price"`
+	MinLotSize     decimal.Decimal `json:"min_lot_size"`
+	Timestamp      int64           `json:"timestamp"`
 }

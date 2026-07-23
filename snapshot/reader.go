@@ -37,7 +37,7 @@ func (r *Reader) ReadSnapshot() (*SnapshotMetadata, []*OrderBookSnapshot, error)
 	}
 
 	if actualChecksum != metadata.SnapshotChecksum {
-		return nil, nil, fmt.Errorf("checksum mismatch: expected %d, got %d", 
+		return nil, nil, fmt.Errorf("checksum mismatch: expected %d, got %d",
 			metadata.SnapshotChecksum, actualChecksum)
 	}
 

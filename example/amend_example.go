@@ -23,7 +23,7 @@ func runAmendExample() {
 
 	eng := engine.New(config)
 	book := eng.GetOrderBook()
-	
+
 	publisher := event.NewChannelPublisher(10000)
 	seqGen := event.NewSequenceGenerator(0)
 	m := matcher.New(book, seqGen, publisher)
@@ -64,7 +64,7 @@ func runAmendExample() {
 	// Test 1: Size decrease (keeps priority)
 	fmt.Println("Test 1: Size Decrease (Keeps Priority)")
 	fmt.Println("---------------------------------------")
-	
+
 	order1 := &order.Order{
 		ID:        1,
 		OrderID:   "order-1",
@@ -78,10 +78,10 @@ func runAmendExample() {
 		Filled:    decimal.Zero,
 		Timestamp: now,
 	}
-	
+
 	book.Add(order1)
 	fmt.Printf("✓ Placed sell order: 1.0 BTC @ 50000\n")
-	
+
 	// Amend: decrease size from 1.0 to 0.5
 	amendReq1 := &protocol.AmendOrderRequest{
 		BaseCommand: protocol.BaseCommand{
@@ -94,21 +94,21 @@ func runAmendExample() {
 		NewPrice: decimal.NewFromInt(50000), // Same price
 		NewSize:  decimal.NewFromFloat(0.5), // Decrease
 	}
-	
+
 	result1 := m.ProcessAmend(amendReq1)
 	if result1.Success {
 		fmt.Printf("✓ Amended order to 0.5 BTC (kept priority)\n")
 	} else {
 		fmt.Printf("✗ Amend failed: %s\n", result1.Detail)
 	}
-	
+
 	time.Sleep(100 * time.Millisecond)
 	fmt.Println()
 
 	// Test 2: Size increase (loses priority)
 	fmt.Println("Test 2: Size Increase (Loses Priority)")
 	fmt.Println("---------------------------------------")
-	
+
 	order2 := &order.Order{
 		ID:        2,
 		OrderID:   "order-2",
@@ -122,10 +122,10 @@ func runAmendExample() {
 		Filled:    decimal.Zero,
 		Timestamp: now + 2000,
 	}
-	
+
 	book.Add(order2)
 	fmt.Printf("✓ Placed buy order: 0.5 BTC @ 49000\n")
-	
+
 	// Amend: increase size from 0.5 to 1.0
 	amendReq2 := &protocol.AmendOrderRequest{
 		BaseCommand: protocol.BaseCommand{
@@ -138,21 +138,21 @@ func runAmendExample() {
 		NewPrice: decimal.NewFromInt(49000), // Same price
 		NewSize:  decimal.NewFromFloat(1.0), // Increase
 	}
-	
+
 	result2 := m.ProcessAmend(amendReq2)
 	if result2.Success {
 		fmt.Printf("✓ Amended order to 1.0 BTC (lost priority)\n")
 	} else {
 		fmt.Printf("✗ Amend failed: %s\n", result2.Detail)
 	}
-	
+
 	time.Sleep(100 * time.Millisecond)
 	fmt.Println()
 
 	// Test 3: Price change (loses priority and might match)
 	fmt.Println("Test 3: Price Change (Loses Priority, Immediate Match)")
 	fmt.Println("--------------------------------------------------------")
-	
+
 	order3 := &order.Order{
 		ID:        3,
 		OrderID:   "order-3",
@@ -166,10 +166,10 @@ func runAmendExample() {
 		Filled:    decimal.Zero,
 		Timestamp: now + 4000,
 	}
-	
+
 	book.Add(order3)
 	fmt.Printf("✓ Placed buy order: 0.3 BTC @ 48000\n")
-	
+
 	// Amend price to 50000 (will match with order-1)
 	amendReq3 := &protocol.AmendOrderRequest{
 		BaseCommand: protocol.BaseCommand{
@@ -182,7 +182,7 @@ func runAmendExample() {
 		NewPrice: decimal.NewFromInt(50000), // Price up
 		NewSize:  decimal.NewFromFloat(0.3), // Same size
 	}
-	
+
 	result3 := m.ProcessAmend(amendReq3)
 	if result3.Success {
 		fmt.Printf("✓ Amended price to 50000 (matched immediately!)\n")
@@ -192,14 +192,14 @@ func runAmendExample() {
 	} else {
 		fmt.Printf("✗ Amend failed: %s\n", result3.Detail)
 	}
-	
+
 	time.Sleep(100 * time.Millisecond)
 	fmt.Println()
 
 	// Test 4: Invalid amend (wrong user)
 	fmt.Println("Test 4: Invalid Amend (Wrong User)")
 	fmt.Println("-----------------------------------")
-	
+
 	amendReq4 := &protocol.AmendOrderRequest{
 		BaseCommand: protocol.BaseCommand{
 			CommandID: "cmd-amend-4",
@@ -211,18 +211,18 @@ func runAmendExample() {
 		NewPrice: decimal.NewFromInt(49000),
 		NewSize:  decimal.NewFromFloat(0.8),
 	}
-	
+
 	result4 := m.ProcessAmend(amendReq4)
 	if !result4.Success {
 		fmt.Printf("✓ Correctly rejected: %s\n", result4.Detail)
 	}
-	
+
 	time.Sleep(100 * time.Millisecond)
 
 	// Print final order book
 	fmt.Println("\n=== Final Order Book ===")
 	bids, asks := book.GetDepth(5)
-	
+
 	fmt.Println("Bids:")
 	if len(bids) == 0 {
 		fmt.Println("  (empty)")
@@ -234,7 +234,7 @@ func runAmendExample() {
 			level.Volume.String(),
 		)
 	}
-	
+
 	fmt.Println("\nAsks:")
 	if len(asks) == 0 {
 		fmt.Println("  (empty)")

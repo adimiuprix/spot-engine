@@ -145,10 +145,10 @@ func TestSerialization(t *testing.T) {
 
 func TestOrderBookState(t *testing.T) {
 	tests := []struct {
-		state           OrderBookState
-		canPlace        bool
-		canCancel       bool
-		canAmend        bool
+		state     OrderBookState
+		canPlace  bool
+		canCancel bool
+		canAmend  bool
 	}{
 		{StateRunning, true, true, true},
 		{StateSuspended, false, true, false},
