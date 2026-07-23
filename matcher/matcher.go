@@ -12,6 +12,7 @@ type Matcher struct {
 	tradeID   uint64
 	seqGen    *event.SequenceGenerator
 	publisher event.PublishLog
+	lotSize   decimal.Decimal // Minimum trade unit
 }
 
 type Result struct {
@@ -25,92 +26,35 @@ func New(book *book.OrderBook, seqGen *event.SequenceGenerator, publisher event.
 		tradeID:   1,
 		seqGen:    seqGen,
 		publisher: publisher,
+		lotSize:   decimal.NewFromFloat(0.00000001), // Default 1e-8
 	}
 }
 
-func (m *Matcher) Process(o *order.Order) Result {
-	switch o.Side {
-	case order.Buy:
-		return m.matchBuy(o)
-	case order.Sell:
-		return m.matchSell(o)
-	}
-	return Result{}
+// SetLotSize sets the minimum trade unit
+func (m *Matcher) SetLotSize(size decimal.Decimal) {
+	m.lotSize = size
 }
 
-func (m *Matcher) matchBuy(buy *order.Order) Result {
-	result := Result{}
-
-	for buy.Remaining().GreaterThan(decimal.Zero) {
-		ask := m.book.BestAsk()
-		if ask == nil {
-			break
-		}
-
-		// Check if price crosses
-		if buy.Price.LessThan(ask.Price) {
-			break
-		}
-
-		// Get first order at this price level
-		sell := ask.Head()
-		if sell == nil {
-			break
-		}
-
-		// Execute trade and get logs
-		tradeLogs := m.execute(buy, sell)
-		result.Trades = append(result.Trades, tradeLogs...)
-
-		// Remove filled orders from the ask side
-		m.book.RemoveFilledOrders(order.Sell)
-
-		// Process iceberg replenishments on ask side
-		m.processReplenishments(order.Sell)
+// Process routes an order to the appropriate handler based on order type
+// This is the legacy entry point - new code should use ProcessWithTIF()
+func (matcher *Matcher) Process(o *order.Order) Result {
+	// Route based on order TYPE (Limit vs Market)
+	switch o.Type {
+	case order.Limit:
+		return matcher.processLimit(o)
+	case order.Market:
+		return matcher.processMarket(o)
+	default:
+		// Default to limit order behavior
+		return matcher.processLimit(o)
 	}
-
-	return result
-}
-
-func (m *Matcher) matchSell(sell *order.Order) Result {
-	result := Result{}
-
-	for sell.Remaining().GreaterThan(decimal.Zero) {
-		bid := m.book.BestBid()
-		if bid == nil {
-			break
-		}
-
-		// Check if price crosses
-		if sell.Price.GreaterThan(bid.Price) {
-			break
-		}
-
-		// Get first order at this price level
-		buy := bid.Head()
-		if buy == nil {
-			break
-		}
-
-		// Execute trade and get logs
-		tradeLogs := m.execute(buy, sell)
-		result.Trades = append(result.Trades, tradeLogs...)
-
-		// Remove filled orders from the bid side
-		m.book.RemoveFilledOrders(order.Buy)
-
-		// Process iceberg replenishments on bid side
-		m.processReplenishments(order.Buy)
-	}
-
-	return result
 }
 
 // processReplenishments processes iceberg order replenishments
-func (m *Matcher) processReplenishments(side order.Side) {
-	tree := m.book.BidTree
+func (matcher *Matcher) processReplenishments(side order.Side) {
+	tree := matcher.book.BidTree
 	if side == order.Sell {
-		tree = m.book.AskTree
+		tree = matcher.book.AskTree
 	}
 
 	// Iterate through all price levels
@@ -121,7 +65,7 @@ func (m *Matcher) processReplenishments(side order.Side) {
 		// Emit replenishment logs
 		for _, o := range replenished {
 			replenishLog := event.NewFillLog(
-				m.seqGen.Next(),
+				matcher.seqGen.Next(),
 				o.CommandID,
 				o.UserID,
 				o.Symbol,
@@ -133,7 +77,7 @@ func (m *Matcher) processReplenishments(side order.Side) {
 				o.Remaining(),
 				false, // Not fully filled since it replenished
 			)
-			m.publisher.Publish(replenishLog)
+			matcher.publisher.Publish(replenishLog)
 		}
 
 		return true // Continue iteration

@@ -9,7 +9,15 @@ import (
 )
 
 // ProcessWithTIF processes an order based on its Time-In-Force
+// This is the main entry point that handles both Limit and Market orders with TIF
 func (m *Matcher) ProcessWithTIF(o *order.Order) Result {
+	// For Market orders, TIF only makes sense for IOC-like behavior
+	// Market orders inherently don't "rest" in book, so only IOC semantics apply
+	if o.Type == order.Market {
+		return m.processMarket(o)
+	}
+
+	// For Limit orders, route based on TIF
 	switch o.TIF {
 	case order.GTC:
 		return m.processGTC(o)

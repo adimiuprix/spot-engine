@@ -1,29 +1,46 @@
 package protocol
 
-// OrderBookState represents the lifecycle state of an order book
-type OrderBookState string
+// OrderBookState represents the operational state of a market
+type OrderBookState uint8
 
 const (
-	StateRunning   OrderBookState = "running"   // Normal operation
-	StateSuspended OrderBookState = "suspended" // Trading suspended, only cancel allowed
-	StateHalted    OrderBookState = "halted"    // Emergency halt, no operations allowed
+	// StateRunning - Normal operation, all orders accepted
+	StateRunning OrderBookState = iota
+
+	// StateSuspended - Temporarily paused, no new orders accepted
+	// Existing orders remain in book, can be cancelled
+	StateSuspended
+
+	// StateHalted - Emergency stop, no operations allowed
+	// Trading completely frozen
+	StateHalted
 )
 
+// String returns the string representation of the state
 func (s OrderBookState) String() string {
-	return string(s)
+	switch s {
+	case StateRunning:
+		return "running"
+	case StateSuspended:
+		return "suspended"
+	case StateHalted:
+		return "halted"
+	default:
+		return "unknown"
+	}
 }
 
-// CanPlaceOrder returns true if new orders can be placed in this state
-func (s OrderBookState) CanPlaceOrder() bool {
+// CanAcceptOrders returns true if the market can accept new orders
+func (s OrderBookState) CanAcceptOrders() bool {
 	return s == StateRunning
 }
 
-// CanCancelOrder returns true if orders can be cancelled in this state
-func (s OrderBookState) CanCancelOrder() bool {
+// CanCancelOrders returns true if orders can be cancelled
+func (s OrderBookState) CanCancelOrders() bool {
 	return s == StateRunning || s == StateSuspended
 }
 
-// CanAmendOrder returns true if orders can be amended in this state
-func (s OrderBookState) CanAmendOrder() bool {
+// CanAmendOrders returns true if orders can be amended
+func (s OrderBookState) CanAmendOrders() bool {
 	return s == StateRunning
 }

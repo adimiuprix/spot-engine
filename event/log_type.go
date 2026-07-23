@@ -36,6 +36,7 @@ const (
 	EventTypeMarketCreated       EventType = "market_created"
 	EventTypeMarketSuspended     EventType = "market_suspended"
 	EventTypeMarketResumed       EventType = "market_resumed"
+	EventTypeMarketHalted        EventType = "market_halted"
 	EventTypeMarketConfigUpdated EventType = "market_config_updated"
 )
 

@@ -8,7 +8,9 @@ import (
 	"github.com/adimiuprix/spot-engine/event"
 	"github.com/adimiuprix/spot-engine/matcher"
 	"github.com/adimiuprix/spot-engine/order"
+	"github.com/adimiuprix/spot-engine/protocol"
 	"github.com/adimiuprix/spot-engine/queue"
+	"github.com/shopspring/decimal"
 )
 
 type Engine struct {
@@ -17,6 +19,7 @@ type Engine struct {
 	orderBook  *book.OrderBook
 	matcher    *matcher.Matcher
 	running    bool
+	state      protocol.OrderBookState // Market state
 	mu         sync.RWMutex
 	publisher  event.PublishLog
 	seqGen     *event.SequenceGenerator
@@ -31,12 +34,23 @@ func New(config Config) *Engine {
 	// Create sequence generator
 	seqGen := event.NewSequenceGenerator(0)
 
+	// Create matcher
+	m := matcher.New(orderBook, seqGen, publisher)
+
+	// Configure lot size (default if not specified)
+	if config.MinLotSize.GreaterThan(decimal.Zero) {
+		m.SetLotSize(config.MinLotSize)
+	} else {
+		m.SetLotSize(DefaultLotSize)
+	}
+
 	return &Engine{
 		config:     config,
 		orderQueue: queue.NewOrderQueue(config.RingBufferSize),
 		orderBook:  orderBook,
-		matcher:    matcher.New(orderBook, seqGen, publisher),
+		matcher:    m,
 		running:    false,
+		state:      protocol.StateRunning, // Start in running state
 		publisher:  publisher,
 		seqGen:     seqGen,
 	}
@@ -105,26 +119,137 @@ func (e *Engine) processNextOrder() {
 		return
 	}
 
-	// Process order based on its Time-In-Force (TIF)
+	// Check market state before processing
+	e.mu.RLock()
+	currentState := e.state
+	e.mu.RUnlock()
+
+	// State enforcement
+	if !currentState.CanAcceptOrders() {
+		// Reject order due to market state
+		var reason string
+		if currentState == protocol.StateSuspended {
+			reason = "market is suspended"
+		} else if currentState == protocol.StateHalted {
+			reason = "market is halted"
+		}
+
+		rejectLog := event.NewRejectLog(
+			e.seqGen.Next(),
+			o.CommandID,
+			o.UserID,
+			o.Symbol,
+			o.Timestamp,
+			protocol.RejectReasonMarketSuspended,
+			reason,
+			o.OrderID,
+		)
+		e.publisher.Publish(rejectLog)
+		return
+	}
+
+	// Process order based on its Time-In-Force (TIF) and Type
 	result := e.matcher.ProcessWithTIF(o)
 
 	// Events are already published by matcher
 	_ = result
 
-	// For GTC and PostOnly: add to book if not fully filled
-	// For IOC, FOK: never add to book (handled in TIF logic)
+	// Add to book logic based on order type and TIF
 	if !o.IsFilled() {
+		// Market orders NEVER rest in book (always fully executed or rejected)
+		if o.Type == order.Market {
+			// Market orders don't rest - do nothing
+			return
+		}
+
+		// Limit orders: handle based on TIF
 		switch o.TIF {
 		case order.GTC, order.PostOnly:
-			// Only GTC and PostOnly can rest in book
+			// GTC and PostOnly can rest in book
 			e.orderBook.Add(o)
 		case order.IOC, order.FOK:
-			// IOC and FOK never rest in book - already cancelled/rejected in TIF handler
-			// Do nothing
+			// IOC and FOK never rest in book
+			// Already handled in TIF logic
 		}
 	}
 }
 
 func (e *Engine) GetOrderBook() *book.OrderBook {
 	return e.orderBook
+}
+
+// GetState returns the current market state
+func (e *Engine) GetState() protocol.OrderBookState {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.state
+}
+
+// SuspendMarket suspends the market (no new orders, can cancel existing)
+func (e *Engine) SuspendMarket(reason string) {
+	e.mu.Lock()
+	oldState := e.state
+	e.state = protocol.StateSuspended
+	e.mu.Unlock()
+
+	// Emit admin log
+	adminLog := event.NewAdminLog(
+		e.seqGen.Next(),
+		"suspend-market",
+		0, // No specific user
+		e.config.Symbol,
+		time.Now().UnixNano(),
+		event.EventTypeMarketSuspended,
+		oldState,
+		protocol.StateSuspended,
+		reason,
+		nil,
+	)
+	e.publisher.Publish(adminLog)
+}
+
+// ResumeMarket resumes the market to running state
+func (e *Engine) ResumeMarket(reason string) {
+	e.mu.Lock()
+	oldState := e.state
+	e.state = protocol.StateRunning
+	e.mu.Unlock()
+
+	// Emit admin log
+	adminLog := event.NewAdminLog(
+		e.seqGen.Next(),
+		"resume-market",
+		0,
+		e.config.Symbol,
+		time.Now().UnixNano(),
+		event.EventTypeMarketResumed,
+		oldState,
+		protocol.StateRunning,
+		reason,
+		nil,
+	)
+	e.publisher.Publish(adminLog)
+}
+
+// HaltMarket halts the market (emergency stop, no operations)
+func (e *Engine) HaltMarket(reason string) {
+	e.mu.Lock()
+	oldState := e.state
+	e.state = protocol.StateHalted
+	e.mu.Unlock()
+
+	// Emit admin log
+	adminLog := event.NewAdminLog(
+		e.seqGen.Next(),
+		"halt-market",
+		0,
+		e.config.Symbol,
+		time.Now().UnixNano(),
+		event.EventTypeMarketHalted,
+		oldState,
+		protocol.StateHalted,
+		reason,
+		nil,
+	)
+	e.publisher.Publish(adminLog)
 }
