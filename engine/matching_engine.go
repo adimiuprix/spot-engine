@@ -5,9 +5,14 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/adimiuprix/spot-engine/book"
 	"github.com/adimiuprix/spot-engine/event"
 	"github.com/adimiuprix/spot-engine/protocol"
+	"github.com/adimiuprix/spot-engine/snapshot"
 )
+
+// Alias for cleaner code
+type OrderBookSnapshot = snapshot.OrderBookSnapshot
 
 // MatchingEngine manages multiple markets and routes commands
 type MatchingEngine struct {
@@ -306,4 +311,92 @@ func (e *MatchingEngine) Shutdown() {
 	defer e.mu.Unlock()
 	e.running = false
 	e.publisher.Close()
+}
+
+// TakeSnapshot creates a point-in-time snapshot of all markets
+func (e *MatchingEngine) TakeSnapshot() ([]*OrderBookSnapshot, uint64) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	var snapshots []*OrderBookSnapshot
+	var globalMaxSeq uint64
+
+	for marketID, market := range e.markets {
+		snap := e.snapshotMarket(marketID, market)
+		snapshots = append(snapshots, snap)
+
+		if snap.LastCmdSeqID > globalMaxSeq {
+			globalMaxSeq = snap.LastCmdSeqID
+		}
+	}
+
+	return snapshots, globalMaxSeq
+}
+
+// snapshotMarket creates a snapshot of a single market
+func (e *MatchingEngine) snapshotMarket(marketID string, market *Market) *OrderBookSnapshot {
+	snap := &OrderBookSnapshot{
+		MarketID:     marketID,
+		SeqID:        e.seqGen.Current(),
+		LastCmdSeqID: e.seqGen.Current(),
+		TradeID:      market.Matcher.GetTradeID(),
+		State:        market.GetState(),
+		MinLotSize:   market.MinLotSize,
+	}
+
+	// Collect all bid orders
+	market.OrderBook.BidTree.Ascend(func(level *book.PriceLevel) bool {
+		for _, o := range level.Orders {
+			snap.Bids = append(snap.Bids, o)
+		}
+		return true
+	})
+
+	// Collect all ask orders
+	market.OrderBook.AskTree.Ascend(func(level *book.PriceLevel) bool {
+		for _, o := range level.Orders {
+			snap.Asks = append(snap.Asks, o)
+		}
+		return true
+	})
+
+	return snap
+}
+
+// RestoreFromSnapshot restores engine state from snapshots
+func (e *MatchingEngine) RestoreFromSnapshot(snapshots []*OrderBookSnapshot) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	// Clear existing markets
+	e.markets = make(map[string]*Market)
+
+	// Restore each market
+	for _, snap := range snapshots {
+		market := NewMarket(snap.MarketID, snap.MinLotSize, e.seqGen, e.publisher)
+		market.SetState(snap.State)
+
+		// Restore bid orders
+		for _, o := range snap.Bids {
+			market.OrderBook.Add(o)
+		}
+
+		// Restore ask orders
+		for _, o := range snap.Asks {
+			market.OrderBook.Add(o)
+		}
+
+		e.markets[snap.MarketID] = market
+	}
+
+	// Update sequence generator
+	maxSeq := uint64(0)
+	for _, snap := range snapshots {
+		if snap.LastCmdSeqID > maxSeq {
+			maxSeq = snap.LastCmdSeqID
+		}
+	}
+	e.seqGen.Set(maxSeq)
+
+	return nil
 }

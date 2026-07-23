@@ -12,6 +12,10 @@ func main() {
 			runManagementExample()
 		case "iceberg":
 			runIcebergExample()
+		case "amend":
+			runAmendExample()
+		case "snapshot":
+			runSnapshotExample()
 		default:
 			runTradingExample()
 		}

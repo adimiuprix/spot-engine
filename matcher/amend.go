@@ -4,7 +4,6 @@ import (
 	"github.com/adimiuprix/spot-engine/event"
 	"github.com/adimiuprix/spot-engine/order"
 	"github.com/adimiuprix/spot-engine/protocol"
-	"github.com/shopspring/decimal"
 )
 
 // AmendResult contains the result of an amend operation
@@ -47,7 +46,6 @@ func (m *Matcher) ProcessAmend(req *protocol.AmendOrderRequest) AmendResult {
 
 	// Calculate changes
 	priceChanged := !existingOrder.Price.Equal(req.NewPrice)
-	sizeChanged := !existingOrder.Quantity.Equal(req.NewSize)
 
 	// Validate new size
 	if req.NewSize.LessThanOrEqual(existingOrder.Filled) {
@@ -74,10 +72,10 @@ func (m *Matcher) ProcessAmend(req *protocol.AmendOrderRequest) AmendResult {
 // Only for: same price + size decrease
 func (m *Matcher) amendInPlace(o *order.Order, req *protocol.AmendOrderRequest) AmendResult {
 	oldQuantity := o.Quantity
-	
+
 	// Update quantity
 	o.Quantity = req.NewSize
-	
+
 	// Emit amend log as a cancel of the reduced portion
 	if req.NewSize.LessThan(oldQuantity) {
 		reduced := oldQuantity.Sub(req.NewSize)

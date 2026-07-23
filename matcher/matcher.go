@@ -16,7 +16,7 @@ type Matcher struct {
 
 type Result struct {
 	Trades []*event.OrderBookLog
-	Fills  []*event.OrderBookLog
+	Fills  []*event.OrderBookLogk
 }
 
 func New(book *book.OrderBook, seqGen *event.SequenceGenerator, publisher event.PublishLog) *Matcher {
@@ -145,6 +145,16 @@ func sideToString(side order.Side) string {
 		return "buy"
 	}
 	return "sell"
+}
+
+// GetTradeID returns the current trade ID
+func (m *Matcher) GetTradeID() uint64 {
+	return m.tradeID
+}
+
+// SetTradeID sets the trade ID (used during snapshot restore)
+func (m *Matcher) SetTradeID(id uint64) {
+	m.tradeID = id
 }
 
 func (m *Matcher) execute(buy *order.Order, sell *order.Order) []*event.OrderBookLog {

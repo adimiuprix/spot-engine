@@ -17,6 +17,7 @@ type Order struct {
 	TIF          TimeInForce
 	Price        decimal.Decimal
 	Quantity     decimal.Decimal
+	QuoteSize    decimal.Decimal // For market orders in quote currency
 	Filled       decimal.Decimal
 	Timestamp    int64
 	VisibleLimit decimal.Decimal // For iceberg orders: max visible quantity
