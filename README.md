@@ -6,6 +6,7 @@ A deterministic, low-latency matching engine for spot trading built in Go. Desig
 
 - **High Performance**: ~23ns best price lookup with 0 allocations using B-Tree structure
 - **Deterministic Replay**: All events use upstream-assigned timestamps for reproducible behavior
+- **Time-In-Force (TIF)**: Full support for GTC, IOC, FOK, and PostOnly orders
 - **Iceberg Orders**: Hide order quantity with automatic replenishment
 - **Order Amendments**: Modify orders with proper priority rules
 - **Market Management**: Create, suspend, resume markets with state enforcement

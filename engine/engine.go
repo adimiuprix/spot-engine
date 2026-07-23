@@ -94,10 +94,8 @@ func (e *Engine) processOrders() {
 			break
 		}
 
-		select {
-		case <-ticker.C:
-			e.processNextOrder()
-		}
+		<-ticker.C
+		e.processNextOrder()
 	}
 }
 
@@ -107,15 +105,23 @@ func (e *Engine) processNextOrder() {
 		return
 	}
 
-	// Match order dengan order book
-	result := e.matcher.Process(o)
+	// Process order based on its Time-In-Force (TIF)
+	result := e.matcher.ProcessWithTIF(o)
 
 	// Events are already published by matcher
 	_ = result
 
-	// Jika order tidak fully filled, tambahkan ke order book
+	// For GTC and PostOnly: add to book if not fully filled
+	// For IOC, FOK: never add to book (handled in TIF logic)
 	if !o.IsFilled() {
-		e.orderBook.Add(o)
+		switch o.TIF {
+		case order.GTC, order.PostOnly:
+			// Only GTC and PostOnly can rest in book
+			e.orderBook.Add(o)
+		case order.IOC, order.FOK:
+			// IOC and FOK never rest in book - already cancelled/rejected in TIF handler
+			// Do nothing
+		}
 	}
 }
 

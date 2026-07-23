@@ -31,6 +31,9 @@ const (
 	RejectReasonInsufficientSize   RejectReason = "insufficient_size"
 	RejectReasonBelowMinLotSize    RejectReason = "below_min_lot_size"
 	RejectReasonInvalidIcebergSize RejectReason = "invalid_iceberg_size"
+	RejectReasonInvalidPrice       RejectReason = "invalid_price"         // Price doesn't cross for IOC/FOK
+	RejectReasonNoLiquidity        RejectReason = "no_liquidity"          // No orders available to match
+	RejectReasonPostOnlyWouldMatch RejectReason = "post_only_would_match" // PostOnly order would match immediately
 
 	// Market-level rejections
 	RejectReasonMarketNotFound      RejectReason = "market_not_found"

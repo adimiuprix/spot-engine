@@ -6,9 +6,10 @@ import (
 )
 
 type PriceLevel struct {
-	Price  decimal.Decimal
-	Orders []*order.Order
-	Volume decimal.Decimal
+	Price      decimal.Decimal
+	Orders     []*order.Order
+	Volume     decimal.Decimal
+	OrderCount int // Total count of orders at this price level
 }
 
 func NewPriceLevel(price decimal.Decimal) *PriceLevel {
@@ -23,6 +24,7 @@ func (p *PriceLevel) Add(o *order.Order) {
 	remaining := o.Remaining()
 	p.Orders = append(p.Orders, o)
 	p.Volume = p.Volume.Add(remaining)
+	p.OrderCount = len(p.Orders)
 }
 
 func (p *PriceLevel) RemoveVolume(qty decimal.Decimal) {
@@ -46,6 +48,7 @@ func (p *PriceLevel) RemoveFilledOrders() {
 
 	p.Orders = active
 	p.Volume = recalcVolume
+	p.OrderCount = len(p.Orders)
 }
 
 // IsEmpty returns true if there are no orders at this price level
@@ -106,6 +109,7 @@ func (p *PriceLevel) RemoveOrder(target *order.Order) bool {
 			if p.Volume.IsNegative() {
 				p.Volume = decimal.Zero
 			}
+			p.OrderCount = len(p.Orders)
 			return true
 		}
 	}
