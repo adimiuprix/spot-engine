@@ -77,8 +77,8 @@ func (e *MatchingEngine) CreateMarket(ctx context.Context, req *protocol.CreateM
 			req.MarketID,
 			req.Timestamp,
 			event.EventTypeMarketCreated,
-			"",
-			protocol.StateRunning,
+			protocol.StateRunning, // Old state (new market starts running)
+			protocol.StateRunning, // New state
 			"",
 			map[string]interface{}{
 				"min_lot_size": req.MinLotSize.String(),
@@ -248,8 +248,8 @@ func (e *MatchingEngine) UpdateConfig(ctx context.Context, req *protocol.UpdateC
 			req.MarketID,
 			req.Timestamp,
 			event.EventTypeMarketConfigUpdated,
-			"",
-			"",
+			market.GetState(), // Keep same state
+			market.GetState(), // Keep same state
 			"",
 			map[string]interface{}{
 				"old_min_lot_size": oldMinLotSize.String(),

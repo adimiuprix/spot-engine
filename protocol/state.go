@@ -35,12 +35,27 @@ func (s OrderBookState) CanAcceptOrders() bool {
 	return s == StateRunning
 }
 
+// CanPlaceOrder is an alias for CanAcceptOrders
+func (s OrderBookState) CanPlaceOrder() bool {
+	return s.CanAcceptOrders()
+}
+
 // CanCancelOrders returns true if orders can be cancelled
 func (s OrderBookState) CanCancelOrders() bool {
 	return s == StateRunning || s == StateSuspended
 }
 
+// CanCancelOrder is an alias for CanCancelOrders
+func (s OrderBookState) CanCancelOrder() bool {
+	return s.CanCancelOrders()
+}
+
 // CanAmendOrders returns true if orders can be amended
 func (s OrderBookState) CanAmendOrders() bool {
 	return s == StateRunning
+}
+
+// CanAmendOrder is an alias for CanAmendOrders
+func (s OrderBookState) CanAmendOrder() bool {
+	return s.CanAmendOrders()
 }

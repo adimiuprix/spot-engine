@@ -14,15 +14,16 @@ import (
 )
 
 type Engine struct {
-	config     Config
-	orderQueue *queue.OrderQueue
-	orderBook  *book.OrderBook
-	matcher    *matcher.Matcher
-	running    bool
-	state      protocol.OrderBookState // Market state
-	mu         sync.RWMutex
-	publisher  event.PublishLog
-	seqGen     *event.SequenceGenerator
+	config       Config
+	orderQueue   *queue.OrderQueue
+	orderBook    *book.OrderBook
+	matcher      *matcher.Matcher
+	running      bool
+	state        protocol.OrderBookState // Market state
+	lastCmdSeqID uint64                  // Last processed command SeqID for replay
+	mu           sync.RWMutex
+	publisher    event.PublishLog
+	seqGen       *event.SequenceGenerator
 }
 
 func New(config Config) *Engine {
@@ -172,10 +173,36 @@ func (e *Engine) processNextOrder() {
 			// Already handled in TIF logic
 		}
 	}
+
+	// Update last processed command SeqID for replay checkpoint
+	e.mu.Lock()
+	e.lastCmdSeqID = o.ID
+	e.mu.Unlock()
 }
 
 func (e *Engine) GetOrderBook() *book.OrderBook {
 	return e.orderBook
+}
+
+// GetLastCmdSeqID returns the last processed command SeqID
+// Used for replay checkpoint after snapshot restore
+func (e *Engine) GetLastCmdSeqID() uint64 {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.lastCmdSeqID
+}
+
+// SetLastCmdSeqID sets the last processed command SeqID
+// Used when restoring from snapshot
+func (e *Engine) SetLastCmdSeqID(seqID uint64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.lastCmdSeqID = seqID
+}
+
+// GetMatcher returns the matcher for snapshot purposes
+func (e *Engine) GetMatcher() *matcher.Matcher {
+	return e.matcher
 }
 
 // GetState returns the current market state

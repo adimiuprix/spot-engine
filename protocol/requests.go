@@ -36,14 +36,23 @@ func (r *PlaceOrderRequest) Validate() error {
 
 // CancelOrderRequest represents a request to cancel an existing order
 type CancelOrderRequest struct {
-	BaseCommand
-	OrderID string `json:"order_id"`
+	CommandID string // Unique command ID for idempotency
+	UserID    uint64 // User making the cancellation
+	Symbol    string // Market symbol (e.g., "BTCUSD")
+	OrderID   string // Order to cancel
+	Timestamp int64  // Command timestamp (for determinism)
 }
 
 // Validate checks if the cancel order request is valid
 func (r *CancelOrderRequest) Validate() error {
-	if err := r.BaseCommand.Validate(); err != nil {
-		return err
+	if r.CommandID == "" {
+		return ErrInvalidCommandID
+	}
+	if r.Timestamp <= 0 {
+		return ErrInvalidTimestamp
+	}
+	if r.Symbol == "" {
+		return ErrInvalidMarketID
 	}
 	if r.OrderID == "" {
 		return ErrInvalidOrderID
