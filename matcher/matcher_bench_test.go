@@ -6,21 +6,22 @@ import (
 	"github.com/adimiuprix/spot-engine/book"
 	"github.com/adimiuprix/spot-engine/event"
 	"github.com/adimiuprix/spot-engine/order"
+	"github.com/adimiuprix/spot-engine/protocol"
 	"github.com/shopspring/decimal"
 )
 
 // MockPublisher for benchmarking (minimal overhead)
 type BenchPublisher struct{}
 
-func (p *BenchPublisher) Publish(log *event.OrderBookLog) {}
-func (p *BenchPublisher) Close() error                    { return nil }
+func (p *BenchPublisher) Publish(log *event.OrderBookLog) error { return nil }
+func (p *BenchPublisher) Close() error                          { return nil }
 
 // BenchmarkLimitOrder_NoMatch tests limit order placement with no matching
 func BenchmarkLimitOrder_NoMatch(b *testing.B) {
 	orderBook := book.NewOrderBook("BTC-USDT")
 	publisher := &BenchPublisher{}
 	seqGen := event.NewSequenceGenerator(0)
-	m := NewMatcher(orderBook, publisher, seqGen)
+	m := New(orderBook, seqGen, publisher)
 
 	// Pre-populate with opposite side orders (no crossing)
 	for i := 0; i < 100; i++ {
@@ -35,7 +36,7 @@ func BenchmarkLimitOrder_NoMatch(b *testing.B) {
 			Filled:    decimal.Zero,
 			Timestamp: int64(i),
 		}
-		m.ProcessLimitOrder(sellOrder)
+		m.ProcessWithTIF(sellOrder)
 	}
 
 	orders := make([]*order.Order, b.N)
@@ -56,7 +57,7 @@ func BenchmarkLimitOrder_NoMatch(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		m.ProcessLimitOrder(orders[i])
+		m.ProcessWithTIF(orders[i])
 	}
 }
 
@@ -65,7 +66,7 @@ func BenchmarkLimitOrder_FullMatch(b *testing.B) {
 	orderBook := book.NewOrderBook("BTC-USDT")
 	publisher := &BenchPublisher{}
 	seqGen := event.NewSequenceGenerator(0)
-	m := NewMatcher(orderBook, publisher, seqGen)
+	m := New(orderBook, seqGen, publisher)
 
 	b.ResetTimer()
 
@@ -82,7 +83,7 @@ func BenchmarkLimitOrder_FullMatch(b *testing.B) {
 			Filled:    decimal.Zero,
 			Timestamp: int64(i * 2),
 		}
-		m.ProcessLimitOrder(sellOrder)
+		m.ProcessWithTIF(sellOrder)
 
 		// Add matching buy order
 		buyOrder := &order.Order{
@@ -96,7 +97,7 @@ func BenchmarkLimitOrder_FullMatch(b *testing.B) {
 			Filled:    decimal.Zero,
 			Timestamp: int64(i*2 + 1),
 		}
-		m.ProcessLimitOrder(buyOrder)
+		m.ProcessWithTIF(buyOrder)
 	}
 }
 
@@ -105,7 +106,7 @@ func BenchmarkLimitOrder_PartialMatch(b *testing.B) {
 	orderBook := book.NewOrderBook("BTC-USDT")
 	publisher := &BenchPublisher{}
 	seqGen := event.NewSequenceGenerator(0)
-	m := NewMatcher(orderBook, publisher, seqGen)
+	m := New(orderBook, seqGen, publisher)
 
 	// Add large sell order
 	largeSell := &order.Order{
@@ -119,7 +120,7 @@ func BenchmarkLimitOrder_PartialMatch(b *testing.B) {
 		Filled:    decimal.Zero,
 		Timestamp: 1,
 	}
-	m.ProcessLimitOrder(largeSell)
+	m.ProcessWithTIF(largeSell)
 
 	orders := make([]*order.Order, b.N)
 	for i := 0; i < b.N; i++ {
@@ -139,7 +140,7 @@ func BenchmarkLimitOrder_PartialMatch(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		m.ProcessLimitOrder(orders[i])
+		m.ProcessWithTIF(orders[i])
 	}
 }
 
@@ -148,7 +149,7 @@ func BenchmarkLimitOrder_MultiLevel(b *testing.B) {
 	orderBook := book.NewOrderBook("BTC-USDT")
 	publisher := &BenchPublisher{}
 	seqGen := event.NewSequenceGenerator(0)
-	m := NewMatcher(orderBook, publisher, seqGen)
+	m := New(orderBook, seqGen, publisher)
 
 	// Add sell orders at different price levels
 	for i := 0; i < 10; i++ {
@@ -163,7 +164,7 @@ func BenchmarkLimitOrder_MultiLevel(b *testing.B) {
 			Filled:    decimal.Zero,
 			Timestamp: int64(i),
 		}
-		m.ProcessLimitOrder(sellOrder)
+		m.ProcessWithTIF(sellOrder)
 	}
 
 	orders := make([]*order.Order, b.N)
@@ -184,7 +185,7 @@ func BenchmarkLimitOrder_MultiLevel(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		m.ProcessLimitOrder(orders[i])
+		m.ProcessWithTIF(orders[i])
 	}
 }
 
@@ -193,7 +194,7 @@ func BenchmarkMarketOrder(b *testing.B) {
 	orderBook := book.NewOrderBook("BTC-USDT")
 	publisher := &BenchPublisher{}
 	seqGen := event.NewSequenceGenerator(0)
-	m := NewMatcher(orderBook, publisher, seqGen)
+	m := New(orderBook, seqGen, publisher)
 
 	// Pre-populate order book
 	for i := 0; i < 100; i++ {
@@ -208,7 +209,7 @@ func BenchmarkMarketOrder(b *testing.B) {
 			Filled:    decimal.Zero,
 			Timestamp: int64(i),
 		}
-		m.ProcessLimitOrder(sellOrder)
+		m.ProcessWithTIF(sellOrder)
 	}
 
 	orders := make([]*order.Order, b.N)
@@ -229,7 +230,7 @@ func BenchmarkMarketOrder(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		m.ProcessMarketOrder(orders[i])
+		m.ProcessWithTIF(orders[i])
 	}
 }
 
@@ -238,7 +239,7 @@ func BenchmarkCancelOrder(b *testing.B) {
 	orderBook := book.NewOrderBook("BTC-USDT")
 	publisher := &BenchPublisher{}
 	seqGen := event.NewSequenceGenerator(0)
-	m := NewMatcher(orderBook, publisher, seqGen)
+	m := New(orderBook, seqGen, publisher)
 
 	// Pre-add orders to cancel
 	orders := make([]*order.Order, b.N)
@@ -255,13 +256,21 @@ func BenchmarkCancelOrder(b *testing.B) {
 			Timestamp: int64(i),
 		}
 		orders[i] = o
-		m.ProcessLimitOrder(o)
+		o.TIF = order.GTC // Set TIF for ProcessWithTIF
+		m.ProcessWithTIF(o)
 	}
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		m.ProcessCancel(orders[i].ID, "cancel-"+string(rune(i)), 100, int64(i+b.N))
+		req := &protocol.CancelOrderRequest{
+			CommandID: "cancel-" + string(rune(i)),
+			UserID:    100,
+			Symbol:    "BTC-USDT",
+			OrderID:   orders[i].OrderID,
+			Timestamp: int64(i + b.N),
+		}
+		m.CancelOrder(req)
 	}
 }
 
@@ -270,7 +279,7 @@ func BenchmarkAmendOrder(b *testing.B) {
 	orderBook := book.NewOrderBook("BTC-USDT")
 	publisher := &BenchPublisher{}
 	seqGen := event.NewSequenceGenerator(0)
-	m := NewMatcher(orderBook, publisher, seqGen)
+	m := New(orderBook, seqGen, publisher)
 
 	// Pre-add orders to amend
 	orders := make([]*order.Order, b.N)
@@ -287,21 +296,25 @@ func BenchmarkAmendOrder(b *testing.B) {
 			Timestamp: int64(i),
 		}
 		orders[i] = o
-		m.ProcessLimitOrder(o)
+		m.ProcessWithTIF(o)
 	}
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		// Amend size down (keeps priority)
-		m.ProcessAmend(
-			orders[i].ID,
-			"amend-"+string(rune(i)),
-			100,
-			int64(i+b.N),
-			decimal.NewFromInt(50000),    // Same price
-			decimal.NewFromFloat(0.5),    // Reduce size
-		)
+		req := &protocol.AmendOrderRequest{
+			BaseCommand: protocol.BaseCommand{
+				CommandID: "amend-" + string(rune(i)),
+				UserID:    100,
+				MarketID:  "BTC-USDT",
+				Timestamp: int64(i + b.N),
+			},
+			OrderID:  orders[i].OrderID,
+			NewPrice: decimal.NewFromInt(50000), // Same price
+			NewSize:  decimal.NewFromFloat(0.5), // Reduce size
+		}
+		m.ProcessAmend(req)
 	}
 }
 
@@ -310,7 +323,7 @@ func BenchmarkIcebergOrder(b *testing.B) {
 	orderBook := book.NewOrderBook("BTC-USDT")
 	publisher := &BenchPublisher{}
 	seqGen := event.NewSequenceGenerator(0)
-	m := NewMatcher(orderBook, publisher, seqGen)
+	m := New(orderBook, seqGen, publisher)
 
 	// Add iceberg sell order
 	iceberg := &order.Order{
@@ -325,7 +338,8 @@ func BenchmarkIcebergOrder(b *testing.B) {
 		Timestamp: 1,
 	}
 	iceberg.SetupIceberg(decimal.NewFromFloat(1.0)) // Show 1.0 at a time
-	m.ProcessLimitOrder(iceberg)
+	iceberg.TIF = order.GTC
+	m.ProcessWithTIF(iceberg)
 
 	orders := make([]*order.Order, b.N)
 	for i := 0; i < b.N; i++ {
@@ -345,7 +359,7 @@ func BenchmarkIcebergOrder(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		m.ProcessLimitOrder(orders[i])
+		m.ProcessWithTIF(orders[i])
 	}
 }
 
@@ -354,7 +368,7 @@ func BenchmarkMatcher_RealisticWorkload(b *testing.B) {
 	orderBook := book.NewOrderBook("BTC-USDT")
 	publisher := &BenchPublisher{}
 	seqGen := event.NewSequenceGenerator(0)
-	m := NewMatcher(orderBook, publisher, seqGen)
+	m := New(orderBook, seqGen, publisher)
 
 	// Pre-populate with orders
 	for i := 0; i < 100; i++ {
@@ -369,7 +383,7 @@ func BenchmarkMatcher_RealisticWorkload(b *testing.B) {
 			Filled:    decimal.Zero,
 			Timestamp: int64(i * 2),
 		}
-		m.ProcessLimitOrder(buyOrder)
+		m.ProcessWithTIF(buyOrder)
 
 		sellOrder := &order.Order{
 			ID:        uint64(i*2 + 1),
@@ -382,7 +396,7 @@ func BenchmarkMatcher_RealisticWorkload(b *testing.B) {
 			Filled:    decimal.Zero,
 			Timestamp: int64(i*2 + 1),
 		}
-		m.ProcessLimitOrder(sellOrder)
+		m.ProcessWithTIF(sellOrder)
 	}
 
 	orderID := uint64(1000)
@@ -413,7 +427,7 @@ func BenchmarkMatcher_RealisticWorkload(b *testing.B) {
 				Filled:    decimal.Zero,
 				Timestamp: int64(i + 1000),
 			}
-			m.ProcessLimitOrder(o)
+			m.ProcessWithTIF(o)
 			activeOrders = append(activeOrders, o)
 			orderID++
 
@@ -425,6 +439,7 @@ func BenchmarkMatcher_RealisticWorkload(b *testing.B) {
 
 			o := &order.Order{
 				ID:        orderID,
+				OrderID:   "ORDER-" + string(rune(int(orderID))),
 				CommandID: "cmd-market-" + string(rune(int(orderID))),
 				UserID:    uint64(100 + (i % 50)),
 				Symbol:    "BTC-USDT",
@@ -434,14 +449,21 @@ func BenchmarkMatcher_RealisticWorkload(b *testing.B) {
 				Filled:    decimal.Zero,
 				Timestamp: int64(i + 1000),
 			}
-			m.ProcessMarketOrder(o)
+			m.ProcessWithTIF(o)
 			orderID++
 
 		case op < 90: // 15% cancels
 			if len(activeOrders) > 0 {
 				idx := i % len(activeOrders)
 				o := activeOrders[idx]
-				m.ProcessCancel(o.ID, "cancel-"+string(rune(int(orderID))), o.UserID, int64(i+1000))
+				req := &protocol.CancelOrderRequest{
+					CommandID: "cancel-" + string(rune(int(orderID))),
+					UserID:    o.UserID,
+					Symbol:    "BTC-USDT",
+					OrderID:   o.OrderID,
+					Timestamp: int64(i + 1000),
+				}
+				m.CancelOrder(req)
 				// Remove from tracking
 				activeOrders = append(activeOrders[:idx], activeOrders[idx+1:]...)
 			}
@@ -451,7 +473,18 @@ func BenchmarkMatcher_RealisticWorkload(b *testing.B) {
 				idx := i % len(activeOrders)
 				o := activeOrders[idx]
 				newQty := o.Quantity.Mul(decimal.NewFromFloat(0.8)) // Reduce by 20%
-				m.ProcessAmend(o.ID, "amend-"+string(rune(int(orderID))), o.UserID, int64(i+1000), o.Price, newQty)
+				req := &protocol.AmendOrderRequest{
+					BaseCommand: protocol.BaseCommand{
+						CommandID: "amend-" + string(rune(int(orderID))),
+						UserID:    o.UserID,
+						MarketID:  "BTC-USDT",
+						Timestamp: int64(i + 1000),
+					},
+					OrderID:  o.OrderID,
+					NewPrice: o.Price,
+					NewSize:  newQty,
+				}
+				m.ProcessAmend(req)
 			}
 		}
 	}
