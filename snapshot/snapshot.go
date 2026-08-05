@@ -1,3 +1,40 @@
+// Package snapshot provides point-in-time snapshot and restore functionality.
+//
+// Snapshots capture the complete state of all markets including order books,
+// sequence numbers, and configuration. They include CRC32 checksums for integrity
+// validation and use atomic file writes to prevent corruption.
+//
+// Key features:
+//   - Complete market state capture
+//   - CRC32 checksum validation
+//   - Atomic file writes (temp + rename)
+//   - JSON format for readability
+//   - Corruption detection on read
+//   - Per-market isolation
+//
+// File format:
+//   - Header with metadata and schema version
+//   - Per-market segments with checksums
+//   - Footer with market index
+//   - JSON encoding for debugging
+//
+// Example usage:
+//
+//	// Take snapshot
+//	snapshots, seqID := engine.TakeSnapshot()
+//	writer := snapshot.NewWriter("./snapshots")
+//	err := writer.WriteSnapshot(snapshots, seqID)
+//
+//	// Restore from snapshot
+//	reader := snapshot.NewReader("./snapshots")
+//	metadata, snapshots, err := reader.ReadSnapshot()
+//	if err != nil {
+//	    // Handle corruption
+//	}
+//	engine.RestoreFromSnapshot(snapshots)
+//
+// Snapshots should be taken periodically (e.g., every 1000 commands) to enable
+// fast recovery without replaying entire event log.
 package snapshot
 
 import (

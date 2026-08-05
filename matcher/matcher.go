@@ -1,3 +1,37 @@
+// Package matcher implements the order matching logic and execution engine.
+//
+// The Matcher processes orders against the order book, executing trades when
+// prices cross. It handles all order types (limit, market), time-in-force
+// policies (GTC, IOC, FOK, PostOnly), and advanced features like iceberg orders
+// and order amendments.
+//
+// Key features:
+//   - Price/time priority matching (FIFO)
+//   - Multiple order types (limit, market)
+//   - Time-in-force policies (GTC, IOC, FOK, PostOnly)
+//   - Iceberg order replenishment
+//   - Order amendments with priority rules
+//   - Event emission for all state changes
+//
+// Example usage:
+//
+//	book := book.NewOrderBook("BTC-USDT")
+//	seqGen := event.NewSequenceGenerator(0)
+//	publisher := event.NewChannelPublisher(10000)
+//	matcher := matcher.New(book, seqGen, publisher)
+//
+//	order := &order.Order{
+//	    ID:        1,
+//	    OrderID:   "order-1",
+//	    CommandID: "cmd-1",
+//	    UserID:    1000,
+//	    Side:      order.Buy,
+//	    Type:      order.Limit,
+//	    Price:     decimal.NewFromInt(50000),
+//	    Quantity:  decimal.NewFromFloat(0.1),
+//	    TIF:       order.GTC,
+//	}
+//	result := matcher.ProcessWithTIF(order)
 package matcher
 
 import (

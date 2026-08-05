@@ -1,3 +1,43 @@
+// Package order defines order types and related data structures.
+//
+// Orders are the fundamental unit of trading in the matching engine.
+// Each order has a unique ID, side (buy/sell), type (limit/market),
+// and time-in-force policy (GTC/IOC/FOK/PostOnly).
+//
+// Key features:
+//   - Multiple order types (limit, market)
+//   - Time-in-force policies (GTC, IOC, FOK, PostOnly)
+//   - Iceberg order support
+//   - Decimal precision (no float rounding)
+//   - Deterministic timestamps
+//
+// Order lifecycle:
+//  1. Create order with required fields
+//  2. Validate order (price, size, etc.)
+//  3. Submit to matching engine
+//  4. Match against opposite side
+//  5. Fill (partial or full)
+//  6. Remove from book when fully filled
+//
+// Example usage:
+//
+//	order := &order.Order{
+//	    ID:        1,
+//	    OrderID:   "order-1",
+//	    CommandID: "cmd-1",
+//	    UserID:    1000,
+//	    Symbol:    "BTC-USDT",
+//	    Side:      order.Buy,
+//	    Type:      order.Limit,
+//	    TIF:       order.GTC,
+//	    Price:     decimal.NewFromInt(50000),
+//	    Quantity:  decimal.NewFromFloat(0.1),
+//	    Filled:    decimal.Zero,
+//	    Timestamp: time.Now().UnixNano(),
+//	}
+//
+//	// Iceberg order
+//	order.SetupIceberg(decimal.NewFromFloat(0.01)) // Show 0.01 at a time
 package order
 
 import (

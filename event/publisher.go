@@ -1,3 +1,44 @@
+// Package event provides event logging and publishing for the matching engine.
+//
+// All state changes in the engine emit immutable events via the PublishLog interface.
+// Events include sequence numbers for ordering and CommandID for idempotency.
+// The event log provides a complete audit trail for compliance and replay.
+//
+// Key features:
+//   - Immutable event log for audit trail
+//   - Sequence number generation for ordering
+//   - Multiple publisher implementations
+//   - Non-blocking publish with overflow policy
+//   - Type-safe event structures
+//
+// Event types:
+//   - Trade: Match between two orders
+//   - Fill: Order execution (partial or full)
+//   - Cancel: Order cancellation
+//   - Reject: Order rejection due to validation
+//   - Admin: Market state changes
+//   - Replenish: Iceberg order replenishment
+//
+// Example usage:
+//
+//	publisher := event.NewChannelPublisher(10000)
+//	seqGen := event.NewSequenceGenerator(0)
+//
+//	// Listen to events
+//	go func() {
+//	    for log := range publisher.Channel() {
+//	        switch log.LogType {
+//	        case event.LogTypeTrade:
+//	            fmt.Printf("Trade: %s @ %s\n", log.TradeQuantity, log.TradePrice)
+//	        case event.LogTypeFill:
+//	            fmt.Printf("Fill: Order %s filled %s\n", log.OrderID, log.FillQuantity)
+//	        }
+//	    }
+//	}()
+//
+//	// Emit event
+//	tradeLog := event.NewTradeLog(seqGen.Next(), ...)
+//	publisher.Publish(tradeLog)
 package event
 
 // PublishLog is the interface for event emission

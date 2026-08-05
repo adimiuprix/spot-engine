@@ -1,3 +1,27 @@
+// Package book provides the core order book implementation using efficient B-Tree data structures.
+//
+// The order book maintains buy and sell orders with O(log n) price level operations
+// and O(1) order lookups. It uses separate trees for bids (descending) and asks (ascending)
+// to optimize for best price retrieval.
+//
+// Key features:
+//   - Zero-allocation best price lookups (23ns)
+//   - FIFO ordering within price levels
+//   - Efficient order addition/removal
+//   - Iceberg order support with replenishment
+//   - Fast order lookup via hash index
+//
+// Example usage:
+//
+//	book := book.NewOrderBook("BTC-USDT")
+//	order := &order.Order{
+//	    OrderID:  "order-1",
+//	    Side:     order.Buy,
+//	    Price:    decimal.NewFromInt(50000),
+//	    Quantity: decimal.NewFromFloat(0.1),
+//	}
+//	book.Add(order)
+//	bestBid := book.BestBid()
 package book
 
 import (

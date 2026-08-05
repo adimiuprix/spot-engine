@@ -1,3 +1,36 @@
+// Package engine provides the core matching engine and multi-market orchestration.
+//
+// The MatchingEngine manages multiple markets, each with its own order book and matcher.
+// It provides async APIs using the Future pattern for all operations, with context
+// support for cancellation and timeouts.
+//
+// Key features:
+//   - Multi-market support with isolation
+//   - Async API with Future pattern
+//   - Market state management (running/suspended/halted)
+//   - Snapshot and restore for disaster recovery
+//   - Event-driven architecture with ring buffer
+//
+// Example usage:
+//
+//	publisher := event.NewChannelPublisher(10000)
+//	engine := engine.NewMatchingEngine(publisher)
+//	engine.Start()
+//	defer engine.Stop()
+//
+//	// Create market
+//	ctx := context.Background()
+//	req := &protocol.CreateMarketRequest{
+//	    BaseCommand: protocol.BaseCommand{
+//	        CommandID: "cmd-1",
+//	        UserID:    1000,
+//	        MarketID:  "BTC-USDT",
+//	        Timestamp: time.Now().UnixNano(),
+//	    },
+//	    MinLotSize: decimal.NewFromFloat(0.001),
+//	}
+//	future, _ := engine.CreateMarket(ctx, req)
+//	success, err := future.Wait(ctx)
 package engine
 
 import (

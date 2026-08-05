@@ -1,3 +1,43 @@
+// Package protocol defines the command protocol for interacting with the matching engine.
+//
+// All commands follow a consistent pattern with BaseCommand providing common fields
+// (CommandID, Timestamp, UserID, MarketID). Requests are validated before processing
+// to ensure data integrity.
+//
+// Key features:
+//   - Strongly-typed request structures
+//   - Built-in validation with detailed errors
+//   - Support for all order types and operations
+//   - Market management commands
+//   - Query operations for read path
+//
+// Command types:
+//   - PlaceOrder: Submit new limit or market orders
+//   - CancelOrder: Cancel existing orders
+//   - AmendOrder: Modify order price or size
+//   - CreateMarket: Create new trading market
+//   - SuspendMarket: Suspend trading (allows cancels only)
+//   - ResumeMarket: Resume trading after suspension
+//   - UpdateConfig: Update market configuration
+//
+// Example usage:
+//
+//	req := &protocol.PlaceOrderRequest{
+//	    BaseCommand: protocol.BaseCommand{
+//	        CommandID: "cmd-1",
+//	        UserID:    1000,
+//	        MarketID:  "BTC-USDT",
+//	        Timestamp: time.Now().UnixNano(),
+//	    },
+//	    OrderID:   "order-1",
+//	    Side:      "buy",
+//	    OrderType: "limit",
+//	    Price:     decimal.NewFromInt(50000),
+//	    Size:      decimal.NewFromFloat(0.1),
+//	}
+//	if err := req.Validate(); err != nil {
+//	    // Handle validation error
+//	}
 package protocol
 
 import "github.com/shopspring/decimal"
