@@ -281,6 +281,6 @@ Built with reference to production-grade matching engines and best practices fro
 
 ---
 
-**Version**: 0.8.0  
+**Version**: 1.0.1  
 **Go Version**: 1.23+  
 **Status**: Production Ready
