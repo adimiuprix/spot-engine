@@ -7,7 +7,6 @@ import (
 
 	"github.com/adimiuprix/spot-engine/engine"
 	"github.com/adimiuprix/spot-engine/event"
-	"github.com/adimiuprix/spot-engine/order"
 	"github.com/adimiuprix/spot-engine/protocol"
 	"github.com/shopspring/decimal"
 )
@@ -17,10 +16,7 @@ func Example() {
 	// Create matching engine
 	publisher := event.NewChannelPublisher(10000)
 	eng := engine.NewMatchingEngine(publisher)
-
-	// Start engine
-	eng.Start()
-	defer eng.Stop()
+	defer eng.Shutdown()
 
 	// Create market
 	ctx := context.Background()
@@ -44,8 +40,7 @@ func Example() {
 func Example_limitOrder() {
 	publisher := event.NewChannelPublisher(10000)
 	eng := engine.NewMatchingEngine(publisher)
-	eng.Start()
-	defer eng.Stop()
+	defer eng.Shutdown()
 
 	ctx := context.Background()
 
@@ -76,7 +71,7 @@ func Example_limitOrder() {
 		Price:     decimal.NewFromInt(50000),
 		Size:      decimal.NewFromFloat(0.1),
 	}
-	eng.SubmitOrder(buyReq)
+	eng.PlaceOrderAsync(ctx, buyReq)
 
 	fmt.Println("Buy order placed")
 	// Output: Buy order placed
@@ -86,8 +81,7 @@ func Example_limitOrder() {
 func Example_marketOrder() {
 	publisher := event.NewChannelPublisher(10000)
 	eng := engine.NewMatchingEngine(publisher)
-	eng.Start()
-	defer eng.Stop()
+	defer eng.Shutdown()
 
 	ctx := context.Background()
 
@@ -118,7 +112,7 @@ func Example_marketOrder() {
 		Price:     decimal.NewFromInt(50000),
 		Size:      decimal.NewFromFloat(0.1),
 	}
-	eng.SubmitOrder(sellReq)
+	eng.PlaceOrderAsync(ctx, sellReq)
 
 	time.Sleep(10 * time.Millisecond) // Let order process
 
@@ -135,7 +129,7 @@ func Example_marketOrder() {
 		OrderType: "market",
 		Size:      decimal.NewFromFloat(0.05),
 	}
-	eng.SubmitOrder(buyReq)
+	eng.PlaceOrderAsync(ctx, buyReq)
 
 	fmt.Println("Market order executed")
 	// Output: Market order executed
@@ -145,8 +139,7 @@ func Example_marketOrder() {
 func Example_icebergOrder() {
 	publisher := event.NewChannelPublisher(10000)
 	eng := engine.NewMatchingEngine(publisher)
-	eng.Start()
-	defer eng.Stop()
+	defer eng.Shutdown()
 
 	ctx := context.Background()
 
@@ -178,7 +171,7 @@ func Example_icebergOrder() {
 		Size:        decimal.NewFromFloat(1.0),
 		VisibleSize: decimal.NewFromFloat(0.1), // Show 0.1 at a time
 	}
-	eng.SubmitOrder(icebergReq)
+	eng.PlaceOrderAsync(ctx, icebergReq)
 
 	fmt.Println("Iceberg order placed")
 	// Output: Iceberg order placed
@@ -188,8 +181,7 @@ func Example_icebergOrder() {
 func Example_amendOrder() {
 	publisher := event.NewChannelPublisher(10000)
 	eng := engine.NewMatchingEngine(publisher)
-	eng.Start()
-	defer eng.Stop()
+	defer eng.Shutdown()
 
 	ctx := context.Background()
 
@@ -220,7 +212,7 @@ func Example_amendOrder() {
 		Price:     decimal.NewFromInt(49000),
 		Size:      decimal.NewFromFloat(0.1),
 	}
-	eng.SubmitOrder(placeReq)
+	eng.PlaceOrderAsync(ctx, placeReq)
 
 	time.Sleep(10 * time.Millisecond) // Let order process
 
@@ -233,10 +225,10 @@ func Example_amendOrder() {
 			Timestamp: time.Now().UnixNano(),
 		},
 		OrderID:  "order-1",
-		NewPrice: decimal.NewFromInt(49000),        // Same price
-		NewSize:  decimal.NewFromFloat(0.05),       // Reduce size
+		NewPrice: decimal.NewFromInt(49000),  // Same price
+		NewSize:  decimal.NewFromFloat(0.05), // Reduce size
 	}
-	eng.SubmitOrder(amendReq)
+	eng.AmendOrderAsync(ctx, amendReq)
 
 	fmt.Println("Order amended")
 	// Output: Order amended
@@ -246,8 +238,7 @@ func Example_amendOrder() {
 func Example_timeInForce() {
 	publisher := event.NewChannelPublisher(10000)
 	eng := engine.NewMatchingEngine(publisher)
-	eng.Start()
-	defer eng.Stop()
+	defer eng.Shutdown()
 
 	ctx := context.Background()
 
@@ -279,7 +270,7 @@ func Example_timeInForce() {
 		Size:      decimal.NewFromFloat(0.1),
 	}
 	// Note: TIF is set on the Order struct when converting from request
-	eng.SubmitOrder(iocReq)
+	eng.PlaceOrderAsync(ctx, iocReq)
 
 	fmt.Println("IOC order processed")
 	// Output: IOC order processed
@@ -289,8 +280,7 @@ func Example_timeInForce() {
 func Example_snapshot() {
 	publisher := event.NewChannelPublisher(10000)
 	eng := engine.NewMatchingEngine(publisher)
-	eng.Start()
-	defer eng.Stop()
+	defer eng.Shutdown()
 
 	ctx := context.Background()
 
@@ -323,25 +313,7 @@ func Example_snapshot() {
 func Example_events() {
 	publisher := event.NewChannelPublisher(10000)
 	eng := engine.NewMatchingEngine(publisher)
-
-	// Listen to events
-	go func() {
-		for log := range publisher.Channel() {
-			switch log.LogType {
-			case event.LogTypeTrade:
-				fmt.Printf("Trade: %s @ %s\n", log.TradeQuantity, log.TradePrice)
-			case event.LogTypeFill:
-				fmt.Printf("Fill: Order %s\n", log.OrderID)
-			case event.LogTypeCancel:
-				fmt.Printf("Cancel: Order %s\n", log.OrderID)
-			case event.LogTypeReject:
-				fmt.Printf("Reject: %s\n", log.RejectReason)
-			}
-		}
-	}()
-
-	eng.Start()
-	defer eng.Stop()
+	defer eng.Shutdown()
 
 	// Place orders...
 	fmt.Println("Event listener started")
